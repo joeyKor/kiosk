@@ -1,0 +1,68 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:kiosk/menu_item_dialog.dart';
+import 'package:kiosk/models/menu_item.dart';
+import 'package:kiosk/widgets/image_display.dart';
+
+class MenuGrid extends StatelessWidget {
+  final List<MenuItem> items;
+  final NumberFormat currencyFormat = NumberFormat('#,##0', 'ko_KR');
+
+  MenuGrid({super.key, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const Center(child: Text('이 카테고리에 메뉴가 없습니다.'));
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(10.0),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        crossAxisSpacing: 10.0,
+        mainAxisSpacing: 10.0,
+        childAspectRatio: 0.9,
+      ),
+      itemCount: items.length,
+      itemBuilder: (BuildContext context, int index) {
+        final item = items[index];
+        return GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (context) => MenuItemDialog(item: item),
+            );
+          },
+          child: Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: ImageDisplay(
+                    imagePath: item.image,
+                    imageBytes: item.imageBytes,
+                    isFile: item.isFile,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        item.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                      Text('${currencyFormat.format(item.price)}원', style: const TextStyle(fontSize: 16)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
