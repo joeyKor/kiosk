@@ -1,33 +1,70 @@
-import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:kiosk/models/order.dart';
-
 import 'package:provider/provider.dart';
 import 'package:kiosk/shopping_cart.dart';
 import 'package:kiosk/widgets/image_display.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:kiosk/widgets/custom_dialog.dart';
 
 class ShoppingCartPage extends StatefulWidget {
-  const ShoppingCartPage({super.key});
+  final String restaurantName;
+  final String tableNumber;
+
+  const ShoppingCartPage({
+    super.key,
+    required this.restaurantName,
+    required this.tableNumber,
+  });
 
   @override
   State<ShoppingCartPage> createState() => _ShoppingCartPageState();
 }
 
 class _ShoppingCartPageState extends State<ShoppingCartPage> {
-  Future<void> _saveOrder(List<CartItem> items, int totalPrice) async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? ordersString = prefs.getString('orders');
-    List<Order> orders = [];
-    if (ordersString != null) {
-      final List<dynamic> decodedList = jsonDecode(ordersString);
-      orders = decodedList.map((item) => Order.fromJson(item)).toList();
+  Future<void> _submitOrder() async {
+    final cart = context.read<ShoppingCart>();
+    if (cart.items.isEmpty) {
+      return;
     }
-    orders.add(Order(items: items, totalPrice: totalPrice, date: DateTime.now()));
-    final String encodedList =
-        jsonEncode(orders.map((order) => order.toJson()).toList());
-    await prefs.setString('orders', encodedList);
+
+    final orderData = {
+      'orderTime': Timestamp.now(),
+      'restaurantName': widget.restaurantName,
+      'tableNumber': widget.tableNumber,
+      'completed': false,
+      'items': cart.items
+          .map(
+            (cartItem) => {
+              'name': cartItem.item.name,
+              'quantity': cartItem.quantity,
+              'price': cartItem.item.price,
+            },
+          )
+          .toList(),
+      'totalPrice': cart.totalPrice,
+    };
+
+    try {
+      await FirebaseFirestore.instance.collection('orders').add(orderData);
+
+      cart.clearCart();
+
+      if (mounted) {
+        showCustomDialog(
+          context: context,
+          title: '주문 완료',
+          content: '주문이 성공적으로 완료되었습니다!',
+        ).then((_) => Navigator.of(context).pop());
+      }
+    } catch (e) {
+      if (mounted) {
+        showCustomDialog(
+          context: context,
+          title: '오류',
+          content: '주문 처리 중 오류가 발생했습니다: $e',
+        );
+      }
+    }
   }
 
   @override
@@ -144,17 +181,7 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
                       width: double.infinity,
                       height: 60,
                       child: ElevatedButton(
-                        onPressed: () {
-                          if (cart.items.isNotEmpty) {
-                            _saveOrder(cart.items, cart.totalPrice);
-                            cart.clearCart();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('주문이 완료되었습니다!')),
-                            );
-                            Navigator.pop(context);
-                          }
-                        },
+                        onPressed: _submitOrder,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           shape: RoundedRectangleBorder(
@@ -163,8 +190,7 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
                         ),
                         child: const Text(
                           '주문하기',
-                          style: TextStyle(
-                              fontSize: 28, color: Colors.white),
+                          style: TextStyle(fontSize: 28, color: Colors.white),
                         ),
                       ),
                     ),
@@ -175,9 +201,10 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
                       child: OutlinedButton(
                         onPressed: () {
                           cart.clearCart();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('장바구니가 비워졌습니다.')),
+                          showCustomDialog(
+                            context: context,
+                            title: '알림',
+                            content: '장바구니가 비워졌습니다.',
                           );
                         },
                         style: OutlinedButton.styleFrom(

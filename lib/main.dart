@@ -19,20 +19,26 @@ import 'package:kiosk/pages/settings_page.dart';
 import 'package:kiosk/models/menu_item.dart';
 import 'package:kiosk/widgets/menu_grid.dart';
 import 'package:kiosk/shopping_cart_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:kiosk/firebase_options.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:kiosk/pages/order_history_page.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
-  ]).then((_) {
-    runApp(
-      ChangeNotifierProvider(
-        create: (context) => ShoppingCart(),
-        child: const MyApp(),
-      ),
-    );
-  });
+  ]);
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => ShoppingCart(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -64,12 +70,36 @@ class _KioskHomePageState extends State<KioskHomePage> {
   bool _isLoading = true;
   String _tableNumber = '';
   String _restaurantName = '';
+  bool _hasOrders = false;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
-    _loadSettings();
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    await _loadSettings();
+    await _loadData();
+    await _checkOrderHistory();
+  }
+
+  Future<void> _checkOrderHistory() async {
+    if (_restaurantName.isEmpty || _tableNumber.isEmpty) return;
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('orders')
+        .where('restaurantName', isEqualTo: _restaurantName)
+        .where('tableNumber', isEqualTo: _tableNumber)
+        .where('completed', isEqualTo: false)
+        .limit(1)
+        .get();
+
+    if (mounted) {
+      setState(() {
+        _hasOrders = snapshot.docs.isNotEmpty;
+      });
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -128,149 +158,181 @@ class _KioskHomePageState extends State<KioskHomePage> {
       key: ValueKey(_categories.length),
       length: _categories.length,
       child: Scaffold(
-        body: SafeArea(
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const SizedBox(width: 48),
-                        Expanded(
-                          child: TabBar(
-                            isScrollable: true,
-                            labelStyle: const TextStyle(fontSize: 20),
-                            tabs: _categories
-                                .map((String name) => Tab(text: name))
-                                .toList(),
+        body: Row(
+          children: [
+            Expanded(
+              child: SafeArea(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const SizedBox(width: 48),
+                              Expanded(
+                                child: TabBar(
+                                  isScrollable: true,
+                                  labelStyle: const TextStyle(fontSize: 20),
+                                  tabs: _categories
+                                      .map((String name) => Tab(text: name))
+                                      .toList(),
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  if (_tableNumber.isNotEmpty)
+                                    Text(
+                                      '테이블: $_tableNumber',
+                                      style: const TextStyle(
+                                          fontSize: 18, fontWeight: FontWeight.bold),
+                                    ),
+                                  const SizedBox(width: 16),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      // TODO: Implement staff call logic
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green[800],
+                                    ),
+                                    child: const Text(
+                                      '직원호출',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.settings),
+                                onPressed: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => SettingsPage(
+                                        categories: _categories,
+                                        menuItems: _menuItems,
+                                        onUpdate: _updateCategoriesAndMenus,
+                                      ),
+                                    ),
+                                  );
+                                  _loadSettings(); // Reload settings after returning from SettingsPage
+                                  _checkOrderHistory();
+                                },
+                              ),
+                            ],
                           ),
+                          Expanded(
+                            child: _categories.isEmpty
+                                ? const Center(
+                                    child: Text(
+                                        '메뉴가 없습니다. 설정에서 카테고리와 메뉴를 추가해주세요.'),
+                                  )
+                                : TabBarView(
+                                    children: _categories.map((String name) {
+                                      return MenuGrid(items: _menuItems[name] ?? []);
+                                    }).toList(),
+                                  ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            Container(
+              width: 220,
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 15),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                border: Border(left: BorderSide(color: Colors.grey[300]!)),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 80,
+                    child: ElevatedButton(
+                      onPressed: _hasOrders
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => OrderHistoryPage(
+                                    restaurantName: _restaurantName,
+                                    tableNumber: _tableNumber,
+                                  ),
+                                ),
+                              );
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        Row(
-                          children: [
-                            if (_tableNumber.isNotEmpty)
-                              Text(
-                                '테이블: $_tableNumber',
-                                style: const TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                            const SizedBox(width: 16),
-                            ElevatedButton(
-                              onPressed: () {
-                                // TODO: Implement staff call logic
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green[800],
-                              ),
-                              child: const Text(
-                                '직원호출',
-                                style: TextStyle(color: Colors.white),
-                              ),
-                            ),
-                          ],
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.settings),
+                      ),
+                      child: const Text(
+                        '주문내역',
+                        style: TextStyle(fontSize: 24, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 120,
+                    child: Consumer<ShoppingCart>(
+                      builder: (context, cart, child) {
+                        return ElevatedButton(
                           onPressed: () async {
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => SettingsPage(
-                                  categories: _categories,
-                                  menuItems: _menuItems,
-                                  onUpdate: _updateCategoriesAndMenus,
+                                  builder: (context) => ShoppingCartPage(
+                                        restaurantName: _restaurantName,
+                                        tableNumber: _tableNumber,
+                                      )),
+                            );
+                            _checkOrderHistory();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text(
+                                '주문하기',
+                                style: TextStyle(fontSize: 28, color: Colors.white),
+                              ),
+                              const SizedBox(height: 10),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  '${cart.itemCount}',
+                                  style: const TextStyle(
+                                    color: Colors.red,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                            );
-                            _loadSettings(); // Reload settings after returning from SettingsPage
-                          },
-                        ),
-                      ],
-                    ),
-                    Expanded(
-                      child: _categories.isEmpty
-                          ? const Center(
-                              child: Text(
-                                  '메뉴가 없습니다. 설정에서 카테고리와 메뉴를 추가해주세요.'),
-                            )
-                          : TabBarView(
-                              children: _categories.map((String name) {
-                                return MenuGrid(items: _menuItems[name] ?? []);
-                              }).toList(),
-                            ),
-                    ),
-                  ],
-                ),
-        ),
-        floatingActionButton: Consumer<ShoppingCart>(
-          builder: (context, cart, child) {
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                ElevatedButton(
-                  onPressed: null, // Disabled
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Padding(
-                    padding:
-                        EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-                    child: Text(
-                      '주문내역',
-                      style: TextStyle(fontSize: 20, color: Colors.white),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                ElevatedButton(
-                  onPressed: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => ShoppingCartPage()),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          '주문하기',
-                          style: TextStyle(fontSize: 20, color: Colors.white),
-                        ),
-                        const SizedBox(width: 10),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
+                            ],
                           ),
-                          child: Text(
-                            '${cart.itemCount}',
-                            style: const TextStyle(
-                              color: Colors.red,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   ),
-                ),
-              ],
-            );
-          },
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

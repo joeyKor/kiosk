@@ -19,10 +19,10 @@ class MenuGrid extends StatelessWidget {
     return GridView.builder(
       padding: const EdgeInsets.all(10.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
+        crossAxisCount: 5, // Show 5 items per row to make them smaller
         crossAxisSpacing: 10.0,
         mainAxisSpacing: 10.0,
-        childAspectRatio: 0.9,
+        childAspectRatio: 0.8, // Adjust aspect ratio
       ),
       itemCount: items.length,
       itemBuilder: (BuildContext context, int index) {
@@ -52,7 +52,7 @@ class MenuGrid extends StatelessWidget {
                     children: [
                       Text(
                         item.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20), // Increased font size
                       ),
                       Text('${currencyFormat.format(item.price)}원', style: const TextStyle(fontSize: 16)),
                     ],

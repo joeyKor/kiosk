@@ -1,3 +1,4 @@
+import 'package:kiosk/pages/owner_mode_page.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kiosk/models/menu_item.dart';
@@ -225,6 +226,24 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                   style: ElevatedButton.styleFrom(textStyle: const TextStyle(fontSize: 18)),
                   child: const Text('확인'),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    if (_restaurantName.isNotEmpty) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => OwnerModePage(restaurantName: _restaurantName),
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    textStyle: const TextStyle(fontSize: 18),
+                  ),
+                  child: const Text('가게 모드'),
                 ),
               ],
             ),
