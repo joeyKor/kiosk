@@ -39,23 +39,27 @@ class MenuGrid extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
+                  flex: 3, // Give more space to the image
                   child: ImageDisplay(
                     imagePath: item.image,
                     imageBytes: item.imageBytes,
                     isFile: item.isFile,
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        item.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20), // Increased font size
-                      ),
-                      Text('${currencyFormat.format(item.price)}원', style: const TextStyle(fontSize: 16)),
-                    ],
+                Expanded( // Wrap the Padding in Expanded
+                  flex: 2, // Give less space to the text
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          item.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20), // Increased font size
+                        ),
+                        Text('${currencyFormat.format(item.price)}원', style: const TextStyle(fontSize: 16)),
+                      ],
+                    ),
                   ),
                 ),
               ],

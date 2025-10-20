@@ -46,44 +46,39 @@ class OrderHistoryPage extends StatelessWidget {
               final totalPrice = orderData['totalPrice'] as int;
 
               return Card(
-                margin: const EdgeInsets.all(10),
+                elevation: 3,
+                margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Padding(
-                  padding: const EdgeInsets.all(15),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '주문 시간: ${DateFormat('yyyy-MM-dd HH:mm').format(orderTime)}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Divider(),
-                      ...items.map((item) {
+                  padding: const EdgeInsets.symmetric(vertical: 10.0),
+                  child: ListTile(
+                    title: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: items.map((item) {
                         return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('${item['name']} x${item['quantity']}', style: const TextStyle(fontSize: 16)),
-                            ],
+                          padding: const EdgeInsets.symmetric(vertical: 5.0),
+                          child: Text(
+                            '${item['name']} x${item['quantity']}',
+                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
                           ),
                         );
                       }).toList(),
-                      const Divider(),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          '총 금액: ${currencyFormat.format(totalPrice)}원',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red,
-                          ),
-                        ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        '주문 시간: ${DateFormat('HH:mm').format(orderTime)}',
+                        style: const TextStyle(fontSize: 14, color: Colors.grey),
                       ),
-                    ],
+                    ),
+                    trailing: Text(
+                      '${currencyFormat.format(totalPrice)}원',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
                   ),
                 ),
               );

@@ -23,6 +23,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:kiosk/firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kiosk/pages/order_history_page.dart';
+import 'package:kiosk/widgets/custom_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -179,46 +180,6 @@ class _KioskHomePageState extends State<KioskHomePage> {
                                       .toList(),
                                 ),
                               ),
-                              Row(
-                                children: [
-                                  if (_tableNumber.isNotEmpty)
-                                    Text(
-                                      '테이블: $_tableNumber',
-                                      style: const TextStyle(
-                                          fontSize: 18, fontWeight: FontWeight.bold),
-                                    ),
-                                  const SizedBox(width: 16),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      // TODO: Implement staff call logic
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.green[800],
-                                    ),
-                                    child: const Text(
-                                      '직원호출',
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.settings),
-                                onPressed: () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => SettingsPage(
-                                        categories: _categories,
-                                        menuItems: _menuItems,
-                                        onUpdate: _updateCategoriesAndMenus,
-                                      ),
-                                    ),
-                                  );
-                                  _loadSettings(); // Reload settings after returning from SettingsPage
-                                  _checkOrderHistory();
-                                },
-                              ),
                             ],
                           ),
                           Expanded(
@@ -245,8 +206,68 @@ class _KioskHomePageState extends State<KioskHomePage> {
                 border: Border(left: BorderSide(color: Colors.grey[300]!)),
               ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      if (_tableNumber.isNotEmpty)
+                        Text(
+                          '테이블: $_tableNumber',
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.settings),
+                        onPressed: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SettingsPage(
+                                categories: _categories,
+                                menuItems: _menuItems,
+                                onUpdate: _updateCategoriesAndMenus,
+                              ),
+                            ),
+                          );
+                          _loadSettings(); // Reload settings after returning from SettingsPage
+                          _checkOrderHistory();
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (_restaurantName.isNotEmpty && _tableNumber.isNotEmpty) {
+                        await FirebaseFirestore.instance.collection('calls').add({
+                          'restaurantName': _restaurantName,
+                          'tableNumber': _tableNumber,
+                          'time': Timestamp.now(),
+                          'confirmed': false,
+                        });
+                        showCustomDialog(
+                          context: context,
+                          title: '직원 호출',
+                          content: '직원을 호출했습니다. 잠시만 기다려주세요.',
+                        );
+                      } else {
+                        showCustomDialog(
+                          context: context,
+                          title: '알림',
+                          content: '음식점 이름과 테이블 번호를 먼저 설정해주세요.',
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[800],
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                    child: const Text(
+                      '직원호출',
+                      style: TextStyle(color: Colors.white, fontSize: 20),
+                    ),
+                  ),
+                  const Spacer(),
                   SizedBox(
                     width: double.infinity,
                     height: 80,

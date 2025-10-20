@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kiosk/models/menu_item.dart';
 import 'package:kiosk/pages/menu_edit_page.dart';
+import 'package:kiosk/widgets/custom_dialog.dart';
 
 class SettingsPage extends StatefulWidget {
   final List<String> categories;
@@ -172,129 +173,144 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('설정', style: TextStyle(fontSize: 24))),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _tableNumberController,
-                        decoration: const InputDecoration(
-                          labelText: '테이블 번호',
-                          border: OutlineInputBorder(),
-                        ),
-                        style: const TextStyle(fontSize: 18),
-                        keyboardType: TextInputType.number,
-                        onChanged: (value) {
-                          setState(() {
-                            _tableNumber = value;
-                          });
-                          _saveSettings();
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextField(
-                        controller: _restaurantNameController,
-                        style: const TextStyle(fontSize: 18),
-                        decoration: const InputDecoration(
-                          labelText: '음식점 이름',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (value) {
-                          setState(() {
-                            _restaurantName = value;
-                          });
-                          _saveSettings();
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    _saveSettings();
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(textStyle: const TextStyle(fontSize: 18)),
-                  child: const Text('확인'),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    if (_restaurantName.isNotEmpty) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => OwnerModePage(restaurantName: _restaurantName),
-                        ),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                    textStyle: const TextStyle(fontSize: 18),
+      appBar: AppBar(
+        title: const Text('설정', style: TextStyle(fontSize: 24)),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              if (_restaurantName.isNotEmpty) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => OwnerModePage(restaurantName: _restaurantName),
                   ),
-                  child: const Text('가게 모드'),
-                ),
-              ],
+                );
+              }
+            },
+            icon: const Icon(Icons.store, color: Colors.white),
+            label: const Text(
+              '가게 모드',
+              style: TextStyle(fontSize: 18, color: Colors.white),
+            ),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
             ),
           ),
-          Expanded(
-            child: ReorderableListView.builder(
-              itemCount: _categories.length,
-              itemBuilder: (context, index) {
-          final category = _categories[index];
-          return ListTile(
-            key: ValueKey(category),
-            title: Text(category, style: const TextStyle(fontSize: 20)),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.menu, size: 30),
-                  onPressed: () => _editCategoryMenu(category),
-                  tooltip: '메뉴 수정',
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('기본 정보', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 16),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _tableNumberController,
+                              decoration: const InputDecoration(labelText: '테이블 번호', border: OutlineInputBorder()),
+                              style: const TextStyle(fontSize: 18),
+                              keyboardType: TextInputType.number,
+                              onChanged: (value) => setState(() => _tableNumber = value),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextField(
+                              controller: _restaurantNameController,
+                              style: const TextStyle(fontSize: 18),
+                              decoration: const InputDecoration(labelText: '음식점 이름', border: OutlineInputBorder()),
+                              onChanged: (value) => setState(() => _restaurantName = value),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          ElevatedButton(
+                            onPressed: () {
+                              _saveSettings();
+                              showCustomDialog(
+                                context: context,
+                                title: '저장 완료',
+                                content: '설정이 저장되었습니다.',
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15)),
+                            child: const Text('저장'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.edit, size: 30),
-                  onPressed: () => _renameCategory(index),
-                  tooltip: '이름 변경',
+              ),
+              const SizedBox(height: 24),
+              const Text('카테고리 관리', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.5, // Adjust height as needed
+                  child: ReorderableListView.builder(
+                    itemCount: _categories.length,
+                    itemBuilder: (context, index) {
+                      final category = _categories[index];
+                      return ListTile(
+                        key: ValueKey(category),
+                        title: Text(category, style: const TextStyle(fontSize: 20)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.menu), 
+                              onPressed: () => _editCategoryMenu(category),
+                              tooltip: '메뉴 수정',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit), 
+                              onPressed: () => _renameCategory(index),
+                              tooltip: '이름 변경',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete), 
+                              onPressed: () => _deleteCategory(index),
+                              tooltip: '삭제',
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    onReorder: (oldIndex, newIndex) {
+                      setState(() {
+                        if (newIndex > oldIndex) newIndex -= 1;
+                        final String item = _categories.removeAt(oldIndex);
+                        _categories.insert(newIndex, item);
+                      });
+                      widget.onUpdate(_categories, _menuItems);
+                    },
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete, size: 30),
-                  onPressed: () => _deleteCategory(index),
-                  tooltip: '삭제',
-                ),
-              ],
-            ),
-          );
-        },
-        onReorder: (oldIndex, newIndex) {
-          setState(() {
-            if (newIndex > oldIndex) {
-              newIndex -= 1;
-            }
-            final String item = _categories.removeAt(oldIndex);
-            _categories.insert(newIndex, item);
-          });
-          widget.onUpdate(_categories, _menuItems);
-        },
-      ), // ReorderableListView.builder
-    ), // Expanded
-  ], // Column children
-),
+              ),
+            ],
+          ),
+        ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addCategory,
-        child: const Icon(Icons.add, size: 36),
+        tooltip: '카테고리 추가',
+        child: const Icon(Icons.add),
       ),
-    );  }
+    );
+  }
 }
