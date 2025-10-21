@@ -23,7 +23,7 @@ class ShoppingCartPage extends StatefulWidget {
 }
 
 class _ShoppingCartPageState extends State<ShoppingCartPage> {
-  Future<void> _submitOrder() async {
+  Future<void> _submitOrder(String paymentMethod) async {
     final cart = context.read<ShoppingCart>();
     if (cart.items.isEmpty) {
       return;
@@ -44,6 +44,7 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
           )
           .toList(),
       'totalPrice': cart.totalPrice,
+      'paymentMethod': paymentMethod,
     };
 
     try {
@@ -89,7 +90,7 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
                     label: const Text('현금결제', style: TextStyle(fontSize: 24)),
                     onPressed: () {
                       Navigator.of(context).pop();
-                      _submitOrder();
+                      _submitOrder('현금결제');
                     },
                     style: ElevatedButton.styleFrom(
                       foregroundColor: Colors.white,
@@ -135,7 +136,7 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
       builder: (BuildContext context) {
         return _PayPaymentDialog(
           totalPrice: cart.totalPrice,
-          onSubmit: _submitOrder,
+          onSubmit: (paymentMethod) => _submitOrder(paymentMethod),
           restaurantName: widget.restaurantName,
         );
       },
@@ -308,7 +309,7 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
 
 class _PayPaymentDialog extends StatefulWidget {
   final int totalPrice;
-  final Future<void> Function() onSubmit;
+  final Future<void> Function(String paymentMethod) onSubmit;
   final String restaurantName;
 
   const _PayPaymentDialog({
@@ -420,7 +421,7 @@ class _PayPaymentDialogState extends State<_PayPaymentDialog> {
         content: '${widget.totalPrice}원 결제가 완료되었습니다.',
       );
 
-      await widget.onSubmit();
+      await widget.onSubmit('페이결제');
       Navigator.of(context).pop(); // Close payment dialog
     } catch (e) {
       Navigator.of(context).pop(); // Close processing dialog

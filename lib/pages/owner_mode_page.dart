@@ -91,6 +91,7 @@ class _OwnerModePageState extends State<OwnerModePage> {
                     final totalPrice = orderData['totalPrice'] as int;
                     final tableNumber = orderData['tableNumber'] as String;
                     final isCompleted = orderData['completed'] as bool;
+                    final paymentMethod = orderData['paymentMethod'] as String? ?? 'N/A';
 
                     return Card(
                       elevation: 3,
@@ -121,7 +122,7 @@ class _OwnerModePageState extends State<OwnerModePage> {
                           subtitle: Padding(
                             padding: const EdgeInsets.only(top: 8.0),
                             child: Text(
-                              '주문 시간: ${DateFormat('HH:mm').format(orderTime)}',
+                              '주문 시간: ${DateFormat('HH:mm').format(orderTime)} ($paymentMethod)',
                               style: const TextStyle(fontSize: 14, color: Colors.grey),
                             ),
                           ),

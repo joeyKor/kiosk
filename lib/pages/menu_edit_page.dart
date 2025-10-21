@@ -236,9 +236,11 @@ class _MenuEditPageState extends State<MenuEditPage> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showItemDialog(),
-        child: const Icon(Icons.add),
+        label: const Text('메뉴 추가', style: TextStyle(fontSize: 18, color: Colors.white)),
+        icon: const Icon(Icons.add, color: Colors.white),
+        backgroundColor: Colors.red,
       ),
     );
   }

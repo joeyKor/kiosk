@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="kiosk"
+        android:label="테이블오더"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

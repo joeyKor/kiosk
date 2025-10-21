@@ -44,6 +44,7 @@ class OrderHistoryPage extends StatelessWidget {
               final orderTime = (orderData['orderTime'] as Timestamp).toDate();
               final items = orderData['items'] as List<dynamic>;
               final totalPrice = orderData['totalPrice'] as int;
+              final paymentMethod = orderData['paymentMethod'] as String? ?? 'N/A';
 
               return Card(
                 elevation: 3,
@@ -67,7 +68,7 @@ class OrderHistoryPage extends StatelessWidget {
                     subtitle: Padding(
                       padding: const EdgeInsets.only(top: 8.0),
                       child: Text(
-                        '주문 시간: ${DateFormat('HH:mm').format(orderTime)}',
+                        '주문 시간: ${DateFormat('HH:mm').format(orderTime)} ($paymentMethod)',
                         style: const TextStyle(fontSize: 14, color: Colors.grey),
                       ),
                     ),

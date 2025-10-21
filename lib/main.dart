@@ -28,6 +28,7 @@ import 'package:kiosk/widgets/pin_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -153,6 +154,11 @@ class _KioskHomePageState extends State<KioskHomePage> {
     _saveData();
   }
 
+  Future<String> _getAdminPin() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('adminPin') ?? '0000'; // Default PIN is '0000'
+  }
+
   @override
   Widget build(BuildContext context) {
     // Rebuild the DefaultTabController whenever the number of categories changes.
@@ -220,10 +226,11 @@ class _KioskHomePageState extends State<KioskHomePage> {
                       IconButton(
                         icon: const Icon(Icons.settings),
                         onPressed: () async {
+                          final adminPin = await _getAdminPin();
                           final bool? isCorrect = await showDialog<bool>(
                             context: context,
-                            builder: (context) => const PinDialog(
-                              correctPin: '0000',
+                            builder: (context) => PinDialog(
+                              correctPin: adminPin,
                             ),
                           );
 
