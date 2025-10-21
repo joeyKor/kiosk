@@ -24,6 +24,7 @@ import 'package:kiosk/firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kiosk/pages/order_history_page.dart';
 import 'package:kiosk/widgets/custom_dialog.dart';
+import 'package:kiosk/widgets/pin_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -219,18 +220,33 @@ class _KioskHomePageState extends State<KioskHomePage> {
                       IconButton(
                         icon: const Icon(Icons.settings),
                         onPressed: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => SettingsPage(
-                                categories: _categories,
-                                menuItems: _menuItems,
-                                onUpdate: _updateCategoriesAndMenus,
-                              ),
+                          final bool? isCorrect = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => const PinDialog(
+                              correctPin: '0000',
                             ),
                           );
-                          _loadSettings(); // Reload settings after returning from SettingsPage
-                          _checkOrderHistory();
+
+                          if (isCorrect == true) {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SettingsPage(
+                                  categories: _categories,
+                                  menuItems: _menuItems,
+                                  onUpdate: _updateCategoriesAndMenus,
+                                ),
+                              ),
+                            );
+                            _loadSettings(); // Reload settings after returning from SettingsPage
+                            _checkOrderHistory();
+                          } else if (isCorrect == false) {
+                            showCustomDialog(
+                              context: context,
+                              title: 'PIN 오류',
+                              content: '잘못된 PIN 번호입니다.',
+                            );
+                          }
                         },
                       ),
                     ],

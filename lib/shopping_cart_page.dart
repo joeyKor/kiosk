@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:kiosk/shopping_cart.dart';
 import 'package:kiosk/widgets/image_display.dart';
 import 'package:kiosk/widgets/custom_dialog.dart';
+import 'package:kiosk/util/decrypt.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ShoppingCartPage extends StatefulWidget {
   final String restaurantName;
@@ -54,7 +56,9 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
           context: context,
           title: '주문 완료',
           content: '주문이 성공적으로 완료되었습니다!',
-        ).then((_) => Navigator.of(context).pop());
+        ).then(
+          (_) => Navigator.of(context).popUntil((route) => route.isFirst),
+        ); // Navigate to main screen
       }
     } catch (e) {
       if (mounted) {
@@ -76,45 +80,43 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
             width: MediaQuery.of(context).size.width * 0.5,
             height: MediaQuery.of(context).size.height * 0.5,
             padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 Expanded(
-                  child: ElevatedButton(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.money, size: 48),
+                    label: const Text('현금결제', style: TextStyle(fontSize: 24)),
                     onPressed: () {
                       Navigator.of(context).pop();
                       _submitOrder();
                     },
                     style: ElevatedButton.styleFrom(
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(15)),
+                      foregroundColor: Colors.white,
+                      backgroundColor: Colors.teal,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
                       ),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        '현금결제',
-                        style: TextStyle(fontSize: 24),
-                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 20),
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(width: 20),
                 Expanded(
-                  child: ElevatedButton(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.payment, size: 48),
+                    label: const Text('페이결제', style: TextStyle(fontSize: 24)),
                     onPressed: () {
                       Navigator.of(context).pop();
                       _showPayPaymentDialog();
                     },
                     style: ElevatedButton.styleFrom(
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(15)),
+                      foregroundColor: Colors.white,
+                      backgroundColor: Colors.blueAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
                       ),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        '페이결제',
-                        style: TextStyle(fontSize: 24),
-                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 20),
                     ),
                   ),
                 ),
@@ -127,32 +129,14 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
   }
 
   void _showPayPaymentDialog() {
+    final cart = context.read<ShoppingCart>();
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('페이결제'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('페이결제를 진행해주세요'),
-              const SizedBox(height: 20),
-              TextFormField(
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: '결제 정보',
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('확인'),
-            ),
-          ],
+        return _PayPaymentDialog(
+          totalPrice: cart.totalPrice,
+          onSubmit: _submitOrder,
+          restaurantName: widget.restaurantName,
         );
       },
     );
@@ -317,6 +301,173 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _PayPaymentDialog extends StatefulWidget {
+  final int totalPrice;
+  final Future<void> Function() onSubmit;
+  final String restaurantName;
+
+  const _PayPaymentDialog({
+    required this.totalPrice,
+    required this.onSubmit,
+    required this.restaurantName,
+  });
+
+  @override
+  _PayPaymentDialogState createState() => _PayPaymentDialogState();
+}
+
+class _PayPaymentDialogState extends State<_PayPaymentDialog> {
+  final _accountController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _accountController.addListener(() {
+      if (!_isLoading && _accountController.text.length == 16) {
+        _processPayment();
+      }
+    });
+  }
+
+  Future<void> _processPayment() async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Dialog(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text("결제중..."),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    await Future.delayed(const Duration(seconds: 2));
+
+    try {
+      final decryptedAccountId = simpleDecrypt(_accountController.text);
+      final amountToWithdraw = widget.totalPrice;
+
+      final accountsRef = FirebaseFirestore.instance
+          .collectionGroup('accounts')
+          .where('accountNumber', isEqualTo: decryptedAccountId);
+      final accountDocs = await accountsRef.get();
+      final targetAccountRef = accountDocs.docs.first.reference;
+
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final snapshot = await transaction.get(targetAccountRef);
+        if (!snapshot.exists) {
+          throw Exception("계좌를 찾을 수 없습니다.");
+        }
+
+        final currentBalance = snapshot.get("balance");
+        if (currentBalance < amountToWithdraw) {
+          throw Exception("잔액이 부족합니다.");
+        }
+
+        final newBalance = currentBalance - amountToWithdraw;
+        transaction.update(targetAccountRef, {"balance": newBalance});
+
+        final userDocRef = targetAccountRef.parent.parent;
+        if (userDocRef == null) {
+          throw Exception("Could not find user document.");
+        }
+        final newTransactionRef = userDocRef.collection('transactions').doc();
+
+        final transactionData = {
+          'amount': amountToWithdraw,
+          'balance_after': newBalance,
+          'description': widget.restaurantName,
+          'is_deposit': false,
+          'memo_to_me': '',
+          'memo_to_recipient': '',
+          'recipientName': widget.restaurantName,
+          'senderName': snapshot.data()?['accountHolderName'] ?? '고객',
+          'timestamp': FieldValue.serverTimestamp(),
+          'type': 'PAYMENT',
+        };
+        transaction.set(newTransactionRef, transactionData);
+      });
+
+      Navigator.of(context).pop(); // Close processing dialog
+      setState(() {
+        _isLoading = false;
+      });
+
+      await showCustomDialog(
+        context: context,
+        title: '결제 완료',
+        content: '${widget.totalPrice}원 결제가 완료되었습니다.',
+      );
+
+      await widget.onSubmit();
+      Navigator.of(context).pop(); // Close payment dialog
+    } catch (e) {
+      Navigator.of(context).pop(); // Close processing dialog
+      setState(() {
+        _isLoading = false;
+      });
+      showCustomDialog(context: context, title: '결제 오류', content: e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData.dark(),
+      child: AlertDialog(
+        title: const Text('페이결제'),
+        content: SizedBox(
+          width: 300, // Adjust as needed
+          height: 200, // Adjust as needed
+          child: Column(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Text(
+                '결제처: ${widget.restaurantName}\n결제금액: ${widget.totalPrice}원',
+                textAlign: TextAlign
+                    .center, // Added for better formatting with two lines
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ), // Increased font size
+              ),
+              const SizedBox(height: 20),
+                          TextField(
+                            controller: _accountController,
+                            autofocus: true,
+                            enabled: !_isLoading, // Disable TextField when loading
+                            obscureText: true, // Hide the input text
+                            style: TextStyle(color: Theme.of(context).canvasColor),
+                            decoration: const InputDecoration(
+                              border: InputBorder.none, // Made the border invisible
+                            ),
+                            keyboardType: TextInputType.number,
+                            maxLength: null, // Removed the character counter
+                          ),            ],
+          ),
+        ),
+        actions: [], // Removed the cancel button
       ),
     );
   }

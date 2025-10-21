@@ -307,7 +307,17 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addCategory,
+        onPressed: () {
+          if (_restaurantName.isEmpty || _tableNumber.isEmpty) {
+            showCustomDialog(
+              context: context,
+              title: '알림',
+              content: '음식점 이름과 테이블 번호를 먼저 설정해주세요.',
+            );
+          } else {
+            _addCategory();
+          }
+        },
         tooltip: '카테고리 추가',
         child: const Icon(Icons.add),
       ),
