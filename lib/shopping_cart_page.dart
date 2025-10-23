@@ -11,11 +11,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 class ShoppingCartPage extends StatefulWidget {
   final String restaurantName;
   final String tableNumber;
+  final String? imageFolderPath;
 
   const ShoppingCartPage({
     super.key,
     required this.restaurantName,
     required this.tableNumber,
+    required this.imageFolderPath,
   });
 
   @override
@@ -172,8 +174,7 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
                               height: 60,
                               child: ImageDisplay(
                                 imagePath: cartItem.item.image,
-                                imageBytes: cartItem.item.imageBytes,
-                                isFile: cartItem.item.isFile,
+                                imageFolderPath: widget.imageFolderPath,
                               ),
                             ),
                             const SizedBox(width: 10),

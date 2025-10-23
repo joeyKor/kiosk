@@ -1,24 +1,22 @@
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
-
 import 'package:flutter/material.dart';
-import 'package:image_cropper/image_cropper.dart' as image_cropper;
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:kiosk/models/menu_item.dart';
-import 'package:kiosk/pages/web_crop_page.dart';
 import 'package:kiosk/widgets/image_display.dart';
+import 'package:kiosk/widgets/local_image_selector.dart';
+import 'package:path/path.dart' as p;
 
 class MenuEditPage extends StatefulWidget {
   final String categoryName;
   final List<MenuItem> menuItems;
   final Function(List<MenuItem>) onUpdate;
+  final String? imageFolderPath;
 
   const MenuEditPage({
     super.key,
     required this.categoryName,
     required this.menuItems,
     required this.onUpdate,
+    required this.imageFolderPath,
   });
 
   @override
@@ -27,70 +25,11 @@ class MenuEditPage extends StatefulWidget {
 
 class _MenuEditPageState extends State<MenuEditPage> {
   late List<MenuItem> _menuItems;
-  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    _menuItems = widget.menuItems.map<MenuItem>((item) {
-      return item;
-      return MenuItem.fromJson(Map<String, dynamic>.from(item as Map));
-    }).toList();
-  }
-
-  Future<void> _cropImageWeb(
-    Uint8List bytes,
-    Function(String?, bool, Uint8List?) setImage,
-  ) async {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => WebCropPage(
-          imageBytes: bytes,
-          onCropped: (croppedPath, isFile, bytes) {
-            setImage(croppedPath, isFile, bytes);
-          },
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickImage(Function(String?, bool, Uint8List?) setImage) async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      if (kIsWeb) {
-        final bytes = await image.readAsBytes();
-        _cropImageWeb(bytes, setImage);
-      } else {
-        final image_cropper.CroppedFile? croppedFile =
-            await image_cropper.ImageCropper().cropImage(
-              sourcePath: image.path,
-              aspectRatio: const image_cropper.CropAspectRatio(
-                ratioX: 1,
-                ratioY: 1,
-              ),
-              uiSettings: [
-                image_cropper.AndroidUiSettings(
-                  toolbarTitle: '이미지 자르기',
-                  toolbarColor: Colors.blue,
-                  toolbarWidgetColor: Colors.white,
-                  initAspectRatio: image_cropper.CropAspectRatioPreset.square,
-                  lockAspectRatio: true,
-                ),
-                image_cropper.IOSUiSettings(
-                  title: '이미지 자르기',
-                  doneButtonTitle: '완료',
-                  cancelButtonTitle: '취소',
-                  aspectRatioLockEnabled: true,
-                ),
-                image_cropper.WebUiSettings(context: context),
-              ],
-            );
-        if (croppedFile != null) {
-          setImage(croppedFile.path, true, null);
-        }
-      }
-    }
+    _menuItems = widget.menuItems.map((item) => MenuItem.fromJson(item.toJson())).toList();
   }
 
   void _showItemDialog({MenuItem? item, int? index}) {
@@ -101,9 +40,9 @@ class _MenuEditPageState extends State<MenuEditPage> {
     final priceController = TextEditingController(
       text: isEditing ? item.price.toString() : '',
     );
-    String? imagePath = isEditing ? item.image : null;
-    Uint8List? imageBytes = isEditing ? item.imageBytes : null;
-    bool isFile = isEditing ? item.isFile : false;
+    
+    // This now holds the FILENAME of the image, e.g., 'americano.jpg'
+    String? imageFilename = isEditing ? item.image : null;
 
     showDialog(
       context: context,
@@ -128,26 +67,29 @@ class _MenuEditPageState extends State<MenuEditPage> {
                       decoration: const InputDecoration(labelText: '가격'),
                     ),
                     const SizedBox(height: 20),
-                    if (imagePath != null || imageBytes != null)
-                      SizedBox(
-                        width: 100,
-                        height: 100,
-                        child: ImageDisplay(
-                          imagePath: imagePath,
-                          imageBytes: imageBytes,
-                          isFile: isFile,
-                        ),
+                    SizedBox(
+                      width: 100,
+                      height: 100,
+                      child: ImageDisplay(
+                        imagePath: imageFilename, // Pass the filename to the display widget
+                        imageFolderPath: widget.imageFolderPath,
                       ),
+                    ),
                     TextButton.icon(
                       icon: const Icon(Icons.image),
                       label: const Text('이미지 선택'),
-                      onPressed: () => _pickImage((path, file, bytes) {
-                        setStateDialog(() {
-                          imagePath = path;
-                          isFile = file;
-                          imageBytes = bytes;
-                        });
-                      }),
+                      onPressed: () async {
+                        final String? selectedFilename = await showDialog<String>(
+                          context: context,
+                          builder: (_) => LocalImageSelector(imageFolderPath: widget.imageFolderPath),
+                        );
+
+                        if (selectedFilename != null) {
+                          setStateDialog(() {
+                            imageFilename = selectedFilename;
+                          });
+                        }
+                      },
                     ),
                   ],
                 ),
@@ -159,27 +101,27 @@ class _MenuEditPageState extends State<MenuEditPage> {
                 ),
                 TextButton(
                   onPressed: () {
-                    if (nameController.text.isNotEmpty &&
-                        (imagePath != null || imageBytes != null) &&
-                        priceController.text.isNotEmpty) {
-                      final newItem = MenuItem(
-                        name: nameController.text,
-                        image: imagePath,
-                        imageBytes: imageBytes,
-                        isFile: isFile,
-                        price: int.tryParse(priceController.text) ?? 0,
-                        category: widget.categoryName,
-                      );
-                      setState(() {
-                        if (isEditing) {
-                          _menuItems[index!] = newItem;
-                        } else {
-                          _menuItems.add(newItem);
-                        }
-                      });
-                      widget.onUpdate(_menuItems);
-                      Navigator.pop(context);
+                    if (nameController.text.isEmpty || priceController.text.isEmpty) {
+                      return;
                     }
+
+                    final newItem = MenuItem(
+                      name: nameController.text,
+                      image: imageFilename, // Save the selected filename
+                      price: int.tryParse(priceController.text) ?? 0,
+                      category: widget.categoryName,
+                    );
+                    
+                    setState(() {
+                      if (isEditing) {
+                        _menuItems[index!] = newItem;
+                      } else {
+                        _menuItems.add(newItem);
+                      }
+                    });
+
+                    widget.onUpdate(_menuItems);
+                    Navigator.pop(context);
                   },
                   child: Text(isEditing ? '저장' : '추가'),
                 ),
@@ -213,9 +155,8 @@ class _MenuEditPageState extends State<MenuEditPage> {
               width: 50,
               height: 50,
               child: ImageDisplay(
-                imagePath: item.image,
-                imageBytes: item.imageBytes,
-                isFile: item.isFile,
+                imagePath: item.image, // This is now a filename
+                imageFolderPath: widget.imageFolderPath,
               ),
             ),
             title: Text(item.name),

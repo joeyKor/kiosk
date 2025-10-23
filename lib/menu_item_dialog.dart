@@ -8,8 +8,9 @@ import 'package:provider/provider.dart';
 
 class MenuItemDialog extends StatefulWidget {
   final MenuItem item;
+  final String? imageFolderPath;
 
-  const MenuItemDialog({super.key, required this.item});
+  const MenuItemDialog({super.key, required this.item, required this.imageFolderPath});
 
   @override
   State<MenuItemDialog> createState() => _MenuItemDialogState();
@@ -59,8 +60,7 @@ class _MenuItemDialogState extends State<MenuItemDialog> {
                     ),
                     child: ImageDisplay(
                       imagePath: widget.item.image,
-                      imageBytes: widget.item.imageBytes,
-                      isFile: widget.item.isFile,
+                      imageFolderPath: widget.imageFolderPath,
                     ),
                   ),
                 ),

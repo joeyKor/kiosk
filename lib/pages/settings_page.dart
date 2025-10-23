@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:kiosk/widgets/change_pin_dialog.dart';
 import 'package:kiosk/pages/owner_mode_page.dart';
@@ -12,12 +13,14 @@ class SettingsPage extends StatefulWidget {
   final List<String> categories;
   final Map<String, List<MenuItem>> menuItems;
   final Function(List<String>, Map<String, List<MenuItem>>) onUpdate;
+  final String? imageFolderPath;
 
   const SettingsPage({
     super.key,
     required this.categories,
     required this.menuItems,
     required this.onUpdate,
+    required this.imageFolderPath,
   });
 
   @override
@@ -31,11 +34,13 @@ class _SettingsPageState extends State<SettingsPage> {
   late TextEditingController _restaurantNameController;
   String _tableNumber = '';
   String _restaurantName = '';
+  String? _imageFolderPath;
 
   @override
   void initState() {
     super.initState();
     _categories = List.from(widget.categories);
+    _imageFolderPath = widget.imageFolderPath;
 
     _menuItems = widget.menuItems.map((key, value) {
       final List<MenuItem> converted = (value as List).map<MenuItem>((item) {
@@ -62,6 +67,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _tableNumber = prefs.getString('tableNumber') ?? '';
       _restaurantName = prefs.getString('restaurantName') ?? '';
+      _imageFolderPath = prefs.getString('imageFolderPath');
       _tableNumberController.text = _tableNumber;
       _restaurantNameController.text = _restaurantName;
     });
@@ -71,6 +77,19 @@ class _SettingsPageState extends State<SettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('tableNumber', _tableNumber);
     await prefs.setString('restaurantName', _restaurantName);
+    // imageFolderPath is saved in _pickImageFolder
+  }
+
+  Future<void> _pickImageFolder() async {
+    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+
+    if (selectedDirectory != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('imageFolderPath', selectedDirectory);
+      setState(() {
+        _imageFolderPath = selectedDirectory;
+      });
+    }
   }
 
   void _addCategory() {
@@ -147,6 +166,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _deleteCategory(int index) {
+    if (_restaurantName.isEmpty) {
+      showCustomDialog(
+        context: context,
+        title: '알림',
+        content: '음식점 이름을 먼저 설정해주세요.',
+      );
+      return;
+    }
     final categoryName = _categories[index];
     setState(() {
       _categories.removeAt(index);
@@ -156,6 +183,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _editCategoryMenu(String categoryName) {
+    if (_restaurantName.isEmpty) {
+      showCustomDialog(
+        context: context,
+        title: '알림',
+        content: '음식점 이름을 먼저 설정해주세요.',
+      );
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -168,6 +203,7 @@ class _SettingsPageState extends State<SettingsPage> {
             });
             widget.onUpdate(_categories, _menuItems);
           },
+          imageFolderPath: _imageFolderPath,
         ),
       ),
     );
@@ -325,13 +361,16 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                           const SizedBox(width: 16),
                           ElevatedButton(
-                            onPressed: () {
-                              _saveSettings();
-                              showCustomDialog(
+                            onPressed: () async {
+                              await _saveSettings();
+                              if (!mounted) return;
+                              await showCustomDialog(
                                 context: context,
                                 title: '저장 완료',
-                                content: '설정이 저장되었습니다.',
+                                content: '설정이 저장되었습니다. 메인 화면으로 돌아갑니다.',
                               );
+                              if (!mounted) return;
+                              Navigator.of(context).pop();
                             },
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
@@ -342,6 +381,35 @@ class _SettingsPageState extends State<SettingsPage> {
                             child: const Text('저장'),
                           ),
                         ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('이미지 폴더 설정', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 16),
+                      Text('현재 설정된 폴더: ${_imageFolderPath ?? '설정되지 않음'}'),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.folder_open),
+                          label: const Text('이미지 폴더 선택'),
+                          onPressed: _pickImageFolder,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            textStyle: const TextStyle(fontSize: 18),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -409,6 +477,14 @@ class _SettingsPageState extends State<SettingsPage> {
                       );
                     },
                     onReorder: (oldIndex, newIndex) {
+                      if (_restaurantName.isEmpty) {
+                        showCustomDialog(
+                          context: context,
+                          title: '알림',
+                          content: '음식점 이름을 먼저 설정해주세요.',
+                        );
+                        return;
+                      }
                       setState(() {
                         if (newIndex > oldIndex) newIndex -= 1;
                         final String item = _categories.removeAt(oldIndex);

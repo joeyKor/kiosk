@@ -7,9 +7,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:crop_your_image/crop_your_image.dart';
-import 'package:image_cropper/image_cropper.dart' as image_cropper;
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kiosk/menu_item_dialog.dart';
@@ -26,12 +23,12 @@ import 'package:kiosk/pages/order_history_page.dart';
 import 'package:kiosk/widgets/custom_dialog.dart';
 import 'package:kiosk/widgets/pin_dialog.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
@@ -50,6 +47,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Kiosk',
       theme: ThemeData(
         primarySwatch: Colors.blue,
@@ -73,6 +71,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
   bool _isLoading = true;
   String _tableNumber = '';
   String _restaurantName = '';
+  String? _imageFolderPath;
   bool _hasOrders = false;
 
   @override
@@ -110,37 +109,122 @@ class _KioskHomePageState extends State<KioskHomePage> {
     setState(() {
       _tableNumber = prefs.getString('tableNumber') ?? '';
       _restaurantName = prefs.getString('restaurantName') ?? '';
+      _imageFolderPath = prefs.getString('imageFolderPath');
     });
   }
 
   Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _categories = prefs.getStringList('categories') ?? [];
-      final String? menuItemsString = prefs.getString('menuItems');
-      if (menuItemsString != null) {
-        final Map<String, dynamic> decodedMap = jsonDecode(menuItemsString);
-        _menuItems = decodedMap.map((key, value) {
-          final List<MenuItem> items = (value as List)
-              .map((item) => MenuItem.fromJson(item as Map<String, dynamic>))
-              .toList();
-          return MapEntry(key, items);
-        });
+    if (_restaurantName.isEmpty) {
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final restaurantRef = FirebaseFirestore.instance
+          .collection('restaurants')
+          .doc(_restaurantName);
+      final docSnapshot = await restaurantRef.get();
+
+      List<String> categories = [];
+      if (docSnapshot.exists && docSnapshot.data()!.containsKey('categories')) {
+        categories = List<String>.from(docSnapshot.data()!['categories']);
       }
-      _isLoading = false;
-    });
+
+      final menuItemsSnapshot = await restaurantRef
+          .collection('menuItems')
+          .get();
+      final Map<String, List<MenuItem>> menuItems = {};
+      for (final doc in menuItemsSnapshot.docs) {
+        final item = MenuItem.fromJson(doc.data());
+        if (menuItems.containsKey(item.category)) {
+          menuItems[item.category]!.add(item);
+        } else {
+          menuItems[item.category] = [item];
+        }
+      }
+
+      setState(() {
+        _categories = categories;
+        _menuItems = menuItems;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print("Error loading data from Firestore: $e");
+      setState(() {
+        _isLoading = false;
+        // Optionally, show an error message to the user
+      });
+    }
   }
 
   Future<void> _saveData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('categories', _categories);
-    final String encodedMap = jsonEncode(
-      _menuItems.map(
-        (key, value) =>
-            MapEntry(key, value.map((item) => item.toJson()).toList()),
-      ),
-    );
-    await prefs.setString('menuItems', encodedMap);
+    if (_restaurantName.isEmpty) {
+      // This case is handled by the UI, but as a safeguard:
+      if (navigatorKey.currentContext != null) {
+        showCustomDialog(
+          context: navigatorKey.currentContext!,
+          title: '저장 실패',
+          content: '음식점 이름이 설정되지 않았습니다.',
+        );
+      }
+      return;
+    }
+
+    try {
+      final restaurantRef = FirebaseFirestore.instance
+          .collection('restaurants')
+          .doc(_restaurantName);
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      // Save categories
+      batch.set(restaurantRef, {
+        'categories': _categories,
+      }, SetOptions(merge: true));
+
+      // Save menu items
+      final menuItemsRef = restaurantRef.collection('menuItems');
+      final currentMenuItemsSnapshot = await menuItemsRef.get();
+      final currentMenuItemIds = currentMenuItemsSnapshot.docs
+          .map((doc) => doc.id)
+          .toSet();
+      final updatedMenuItemNames = <String>{};
+
+      for (final category in _categories) {
+        if (_menuItems[category] == null) continue;
+        for (final item in _menuItems[category]!) {
+          final menuItemDocRef = menuItemsRef.doc(item.name);
+          batch.set(menuItemDocRef, item.toJson());
+          updatedMenuItemNames.add(item.name);
+        }
+      }
+
+      // Delete menu items that are no longer in the list
+      final itemsToDelete = currentMenuItemIds.difference(updatedMenuItemNames);
+      for (final itemId in itemsToDelete) {
+        batch.delete(menuItemsRef.doc(itemId));
+      }
+
+      await batch.commit();
+
+      if (navigatorKey.currentContext != null) {
+        showCustomDialog(
+          context: navigatorKey.currentContext!,
+          title: '저장 완료',
+          content: '데이터가 에 성공적으로 저장되었습니다.',
+        );
+      }
+    } catch (e) {
+      if (navigatorKey.currentContext != null) {
+        showCustomDialog(
+          context: navigatorKey.currentContext!,
+          title: '저장 오류',
+          content: ' 저장 중 오류가 발생했습니다: $e',
+        );
+      }
+    }
   }
 
   void _updateCategoriesAndMenus(
@@ -193,11 +277,15 @@ class _KioskHomePageState extends State<KioskHomePage> {
                             child: _categories.isEmpty
                                 ? const Center(
                                     child: Text(
-                                        '메뉴가 없습니다. 설정에서 카테고리와 메뉴를 추가해주세요.'),
+                                      '메뉴가 없습니다. 설정에서 카테고리와 메뉴를 추가해주세요.',
+                                    ),
                                   )
                                 : TabBarView(
                                     children: _categories.map((String name) {
-                                      return MenuGrid(items: _menuItems[name] ?? []);
+                                      return MenuGrid(
+                                        items: _menuItems[name] ?? [],
+                                        imageFolderPath: _imageFolderPath,
+                                      );
                                     }).toList(),
                                   ),
                           ),
@@ -221,7 +309,9 @@ class _KioskHomePageState extends State<KioskHomePage> {
                         Text(
                           '테이블: $_tableNumber',
                           style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       IconButton(
                         icon: const Icon(Icons.settings),
@@ -229,9 +319,8 @@ class _KioskHomePageState extends State<KioskHomePage> {
                           final adminPin = await _getAdminPin();
                           final bool? isCorrect = await showDialog<bool>(
                             context: context,
-                            builder: (context) => PinDialog(
-                              correctPin: adminPin,
-                            ),
+                            builder: (context) =>
+                                PinDialog(correctPin: adminPin),
                           );
 
                           if (isCorrect == true) {
@@ -242,10 +331,12 @@ class _KioskHomePageState extends State<KioskHomePage> {
                                   categories: _categories,
                                   menuItems: _menuItems,
                                   onUpdate: _updateCategoriesAndMenus,
+                                  imageFolderPath: _imageFolderPath,
                                 ),
                               ),
                             );
-                            _loadSettings(); // Reload settings after returning from SettingsPage
+                            await _loadSettings(); // Reload settings after returning from SettingsPage
+                            await _loadData(); // Reload data for the new restaurant name
                             _checkOrderHistory();
                           } else if (isCorrect == false) {
                             showCustomDialog(
@@ -261,13 +352,16 @@ class _KioskHomePageState extends State<KioskHomePage> {
                   const SizedBox(height: 10),
                   ElevatedButton(
                     onPressed: () async {
-                      if (_restaurantName.isNotEmpty && _tableNumber.isNotEmpty) {
-                        await FirebaseFirestore.instance.collection('calls').add({
-                          'restaurantName': _restaurantName,
-                          'tableNumber': _tableNumber,
-                          'time': Timestamp.now(),
-                          'confirmed': false,
-                        });
+                      if (_restaurantName.isNotEmpty &&
+                          _tableNumber.isNotEmpty) {
+                        await FirebaseFirestore.instance
+                            .collection('calls')
+                            .add({
+                              'restaurantName': _restaurantName,
+                              'tableNumber': _tableNumber,
+                              'time': Timestamp.now(),
+                              'confirmed': false,
+                            });
                         showCustomDialog(
                           context: context,
                           title: '직원 호출',
@@ -334,6 +428,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
                                   builder: (context) => ShoppingCartPage(
                                         restaurantName: _restaurantName,
                                         tableNumber: _tableNumber,
+                                        imageFolderPath: _imageFolderPath,
                                       )),
                             );
                             _checkOrderHistory();
@@ -349,7 +444,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
                             children: [
                               const Text(
                                 '주문하기',
-                                style: TextStyle(fontSize: 28, color: Colors.white),
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  color: Colors.white,
+                                ),
                               ),
                               const SizedBox(height: 10),
                               Container(

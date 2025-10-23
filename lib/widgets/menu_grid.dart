@@ -6,9 +6,10 @@ import 'package:kiosk/widgets/image_display.dart';
 
 class MenuGrid extends StatelessWidget {
   final List<MenuItem> items;
+  final String? imageFolderPath;
   final NumberFormat currencyFormat = NumberFormat('#,##0', 'ko_KR');
 
-  MenuGrid({super.key, required this.items});
+  MenuGrid({super.key, required this.items, required this.imageFolderPath});
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +32,7 @@ class MenuGrid extends StatelessWidget {
           onTap: () {
             showDialog(
               context: context,
-              builder: (context) => MenuItemDialog(item: item),
+              builder: (context) => MenuItemDialog(item: item, imageFolderPath: imageFolderPath),
             );
           },
           child: Card(
@@ -42,8 +43,7 @@ class MenuGrid extends StatelessWidget {
                   flex: 3, // Give more space to the image
                   child: ImageDisplay(
                     imagePath: item.image,
-                    imageBytes: item.imageBytes,
-                    isFile: item.isFile,
+                    imageFolderPath: imageFolderPath,
                   ),
                 ),
                 Expanded( // Wrap the Padding in Expanded
