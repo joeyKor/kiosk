@@ -331,7 +331,7 @@ class _PayPaymentDialogState extends State<_PayPaymentDialog> {
   void initState() {
     super.initState();
     _accountController.addListener(() {
-      if (!_isLoading && _accountController.text.length == 16) {
+      if (!_isLoading && _accountController.text.length == 13) {
         _processPayment();
       }
     });
@@ -445,28 +445,58 @@ class _PayPaymentDialogState extends State<_PayPaymentDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.max,
             children: [
-              Text(
-                '결제처: ${widget.restaurantName}\n결제금액: ${widget.totalPrice}원',
-                textAlign: TextAlign
-                    .center, // Added for better formatting with two lines
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ), // Increased font size
+              Text.rich(
+                TextSpan(
+                  children: [
+                    const TextSpan(
+                      text: '결제처: ',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '${widget.restaurantName}\n',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.yellow,
+                      ),
+                    ),
+                    const TextSpan(
+                      text: '결제금액: ',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '${widget.totalPrice}원',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.yellow,
+                      ),
+                    ),
+                  ],
+                ),
+                textAlign: TextAlign.center,
               ),
+
               const SizedBox(height: 20),
-                          TextField(
-                            controller: _accountController,
-                            autofocus: true,
-                            enabled: !_isLoading, // Disable TextField when loading
-                            obscureText: true, // Hide the input text
-                            style: TextStyle(color: Theme.of(context).canvasColor),
-                            decoration: const InputDecoration(
-                              border: InputBorder.none, // Made the border invisible
-                            ),
-                            keyboardType: TextInputType.number,
-                            maxLength: null, // Removed the character counter
-                          ),            ],
+              TextField(
+                controller: _accountController,
+                autofocus: true,
+                enabled: !_isLoading, // Disable TextField when loading
+                obscureText: true, // Hide the input text
+                style: TextStyle(color: Colors.black12),
+                decoration: const InputDecoration(
+                  border: InputBorder.none, // Made the border invisible
+                ),
+                keyboardType: TextInputType.number,
+                maxLength: null, // Removed the character counter
+              ),
+            ],
           ),
         ),
         actions: [], // Removed the cancel button
