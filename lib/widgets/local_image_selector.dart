@@ -20,6 +20,16 @@ class _LocalImageSelectorState extends State<LocalImageSelector> {
     _imageFilesFuture = _loadImagesFromDirectory();
   }
 
+  @override
+  void didUpdateWidget(covariant LocalImageSelector oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.imageFolderPath != oldWidget.imageFolderPath) {
+      setState(() {
+        _imageFilesFuture = _loadImagesFromDirectory();
+      });
+    }
+  }
+
   Future<List<File>> _loadImagesFromDirectory() async {
     if (widget.imageFolderPath == null) {
       return []; // Return empty list if no path is set
@@ -50,66 +60,82 @@ class _LocalImageSelectorState extends State<LocalImageSelector> {
       content: Container(
         width: double.maxFinite,
         height: MediaQuery.of(context).size.height * 0.7,
-        child: widget.imageFolderPath == null
-            ? const Center(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.imageFolderPath != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
                 child: Text(
-                  '먼저 설정에서 이미지 폴더를 지정해주세요.',
-                  textAlign: TextAlign.center,
+                  '폴더: ${widget.imageFolderPath}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              )
-            : FutureBuilder<List<File>>(
-                future: _imageFilesFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(
+              ),
+            Expanded(
+              child: widget.imageFolderPath == null
+                  ? const Center(
                       child: Text(
-                        '선택한 폴더에 이미지가 없습니다.',
+                        '먼저 설정에서 이미지 폴더를 지정해주세요.',
                         textAlign: TextAlign.center,
                       ),
-                    );
-                  }
+                    )
+                  : FutureBuilder<List<File>>(
+                      future: _imageFilesFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
 
-                  final imageFiles = snapshot.data!;
-
-                  return GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4,
-                      crossAxisSpacing: 8.0,
-                      mainAxisSpacing: 8.0,
-                    ),
-                    itemCount: imageFiles.length,
-                    itemBuilder: (context, index) {
-                      final file = imageFiles[index];
-                      final filename = file.path.split(Platform.pathSeparator).last;
-
-                      return GestureDetector(
-                        onTap: () {
-                          // Return the selected filename
-                          Navigator.of(context).pop(filename);
-                        },
-                        child: GridTile(
-                          footer: GridTileBar(
-                            backgroundColor: Colors.black45,
-                            title: Text(
-                              filename,
+                        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                          return const Center(
+                            child: Text(
+                              '선택한 폴더에 이미지가 없습니다.',
                               textAlign: TextAlign.center,
-                              overflow: TextOverflow.ellipsis,
                             ),
+                          );
+                        }
+
+                        final imageFiles = snapshot.data!;
+
+                        return GridView.builder(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            crossAxisSpacing: 8.0,
+                            mainAxisSpacing: 8.0,
                           ),
-                          child: ImageDisplay(
-                            imagePath: file.path,
-                            isFile: true, // We pass the full path for preview
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+                          itemCount: imageFiles.length,
+                          itemBuilder: (context, index) {
+                            final file = imageFiles[index];
+                            final filename = file.path.split(Platform.pathSeparator).last;
+
+                            return GestureDetector(
+                              onTap: () {
+                                // Return the selected filename
+                                Navigator.of(context).pop(filename);
+                              },
+                              child: GridTile(
+                                footer: GridTileBar(
+                                  backgroundColor: Colors.black45,
+                                  title: Text(
+                                    filename,
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                child: ImageDisplay(
+                                  imagePath: file.path,
+                                  isFile: true, // We pass the full path for preview
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(

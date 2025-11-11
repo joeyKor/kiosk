@@ -67,7 +67,6 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _tableNumber = prefs.getString('tableNumber') ?? '';
       _restaurantName = prefs.getString('restaurantName') ?? '';
-      _imageFolderPath = prefs.getString('imageFolderPath');
       _tableNumberController.text = _tableNumber;
       _restaurantNameController.text = _restaurantName;
     });
