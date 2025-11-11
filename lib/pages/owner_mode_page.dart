@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:intl/intl.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:kiosk/widgets/custom_dialog.dart';
 
 class OwnerModePage extends StatefulWidget {
   final String restaurantName;
@@ -15,23 +15,82 @@ class OwnerModePage extends StatefulWidget {
 
 class _OwnerModePageState extends State<OwnerModePage> {
   late AudioPlayer _audioPlayer;
-  int _previousOrderCount = 0;
-  int _previousCallCount = 0;
+  late FlutterTts _flutterTts;
+  final Set<String> _announcedOrderIds = {};
+  final Set<String> _announcedCallIds = {};
+  bool _isFirstOrderLoad = true;
+  bool _isFirstCallLoad = true;
 
   @override
   void initState() {
     super.initState();
     _audioPlayer = AudioPlayer();
+    _initTts();
+  }
+
+  void _initTts() async {
+    _flutterTts = FlutterTts();
+    await _flutterTts.setLanguage('ko-KR');
+    await _flutterTts.setSpeechRate(0.5);
   }
 
   @override
   void dispose() {
     _audioPlayer.dispose();
+    _flutterTts.stop();
     super.dispose();
   }
 
   Future<void> _playSound() async {
     await _audioPlayer.play(AssetSource('audio/calls.mp3'));
+  }
+
+  void _processNewOrders(List<QueryDocumentSnapshot> docs) {
+    if (_isFirstOrderLoad) {
+      for (final doc in docs) {
+        _announcedOrderIds.add(doc.id);
+      }
+      _isFirstOrderLoad = false;
+      return;
+    }
+
+    for (final doc in docs) {
+      if (!_announcedOrderIds.contains(doc.id)) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null) {
+          final tableNumber = data['tableNumber'] as String?;
+          if (tableNumber != null) {
+            _playSound();
+            _flutterTts.speak('$tableNumber번 테이블에 주문이 들어왔습니다.');
+          }
+        }
+        _announcedOrderIds.add(doc.id);
+      }
+    }
+  }
+
+  void _processNewCalls(List<QueryDocumentSnapshot> docs) {
+    if (_isFirstCallLoad) {
+      for (final doc in docs) {
+        _announcedCallIds.add(doc.id);
+      }
+      _isFirstCallLoad = false;
+      return;
+    }
+
+    for (final doc in docs) {
+      if (!_announcedCallIds.contains(doc.id)) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null) {
+          final tableNumber = data['tableNumber'] as String?;
+          if (tableNumber != null) {
+            _playSound();
+            _flutterTts.speak('$tableNumber번 테이블에서 직원 호출이 들어왔습니다.');
+          }
+        }
+        _announcedCallIds.add(doc.id);
+      }
+    }
   }
 
   @override
@@ -64,27 +123,21 @@ class _OwnerModePageState extends State<OwnerModePage> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final currentOrderCount = snapshot.data!.docs.length;
-                if (_previousOrderCount != 0 && currentOrderCount > _previousOrderCount) {
-                  _playSound();
+                final docs = snapshot.data?.docs ?? [];
+                if (docs.isNotEmpty) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    showCustomDialog(
-                      context: context,
-                      title: '새로운 주문',
-                      content: '새로운 주문이 도착했습니다!',
-                    );
+                    _processNewOrders(docs);
                   });
                 }
-                _previousOrderCount = currentOrderCount;
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                if (docs.isEmpty) {
                   return const Center(child: Text('오늘의 주문 내역이 없습니다.'));
                 }
 
                 return ListView.builder(
-                  itemCount: snapshot.data!.docs.length,
+                  itemCount: docs.length,
                   itemBuilder: (context, index) {
-                    final orderDoc = snapshot.data!.docs[index];
+                    final orderDoc = docs[index];
                     final orderData = orderDoc.data() as Map<String, dynamic>;
                     final orderTime = (orderData['orderTime'] as Timestamp).toDate();
                     final items = orderData['items'] as List<dynamic>;
@@ -183,27 +236,21 @@ class _OwnerModePageState extends State<OwnerModePage> {
                           return const Center(child: CircularProgressIndicator());
                         }
 
-                        final currentCallCount = snapshot.data!.docs.length;
-                        if (_previousCallCount != 0 && currentCallCount > _previousCallCount) {
-                          _playSound();
+                        final docs = snapshot.data?.docs ?? [];
+                        if (docs.isNotEmpty) {
                           WidgetsBinding.instance.addPostFrameCallback((_) {
-                            showCustomDialog(
-                              context: context,
-                              title: '직원 호출',
-                              content: '새로운 직원 호출이 들어왔습니다!',
-                            );
+                            _processNewCalls(docs);
                           });
                         }
-                        _previousCallCount = currentCallCount;
 
-                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        if (docs.isEmpty) {
                           return const Center(child: Text('오늘의 직원 호출 내역이 없습니다.'));
                         }
 
                         return ListView.builder(
-                          itemCount: snapshot.data!.docs.length,
+                          itemCount: docs.length,
                           itemBuilder: (context, index) {
-                            final callDoc = snapshot.data!.docs[index];
+                            final callDoc = docs[index];
                             final callData = callDoc.data() as Map<String, dynamic>;
                             final callTime = (callData['time'] as Timestamp).toDate();
                             final tableNumber = callData['tableNumber'] as String;
