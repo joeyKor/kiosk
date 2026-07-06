@@ -136,7 +136,7 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return _PayPaymentDialog(
+        return PayPaymentDialog(
           totalPrice: cart.totalPrice,
           onSubmit: (paymentMethod) => _submitOrder(paymentMethod),
           restaurantName: widget.restaurantName,
@@ -308,22 +308,22 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
   }
 }
 
-class _PayPaymentDialog extends StatefulWidget {
+class PayPaymentDialog extends StatefulWidget {
   final int totalPrice;
   final Future<void> Function(String paymentMethod) onSubmit;
   final String restaurantName;
 
-  const _PayPaymentDialog({
+  const PayPaymentDialog({
     required this.totalPrice,
     required this.onSubmit,
     required this.restaurantName,
   });
 
   @override
-  _PayPaymentDialogState createState() => _PayPaymentDialogState();
+  PayPaymentDialogState createState() => PayPaymentDialogState();
 }
 
-class _PayPaymentDialogState extends State<_PayPaymentDialog> {
+class PayPaymentDialogState extends State<PayPaymentDialog> {
   final _accountController = TextEditingController();
   bool _isLoading = false;
 
