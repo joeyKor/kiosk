@@ -73,6 +73,7 @@ class _MenuItemDialogState extends State<MenuItemDialog> {
                                         child: ImageDisplay(
                                           imagePath: widget.item.image,
                                           imageFolderPath: widget.imageFolderPath,
+                                          itemName: widget.item.name,
                                         ),
                                       ),
                                       if (isBest)

@@ -124,10 +124,14 @@ class _KioskHomePageState extends State<KioskHomePage> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _tableNumber = prefs.getString('tableNumber') ?? '';
-      _restaurantName = prefs.getString('restaurantName') ?? '';
+      _tableNumber = prefs.getString('tableNumber') ?? '2';
+      if (_tableNumber.isEmpty) _tableNumber = '2';
+      _restaurantName = prefs.getString('restaurantName') ?? '조이김밥';
+      if (_restaurantName.isEmpty) _restaurantName = '조이김밥';
       _imageFolderPath = prefs.getString('imageFolderPath');
     });
+    await prefs.setString('restaurantName', _restaurantName);
+    await prefs.setString('tableNumber', _tableNumber);
   }
 
   Future<void> _loadData() async {
@@ -159,6 +163,43 @@ class _KioskHomePageState extends State<KioskHomePage> {
           menuItems[item.category]!.add(item);
         } else {
           menuItems[item.category] = [item];
+        }
+      }
+
+      if (_restaurantName == '조이김밥' && (categories.isEmpty || menuItemsSnapshot.docs.isEmpty)) {
+        categories = ['김밥', '분식', '음료'];
+        await restaurantRef.set({'categories': categories}, SetOptions(merge: true));
+
+        final defaultItems = [
+          MenuItem(name: '조이김밥', category: '김밥', price: 3500, description: '정갈하고 든든한 기본 야채 김밥', image: 'assets/images/joy_gimbap.png', order: 1),
+          MenuItem(name: '참치김밥', category: '김밥', price: 4500, description: '참치마요를 듬뿍 넣어 부드러운 김밥', image: 'assets/images/tuna_gimbap.png', order: 2),
+          MenuItem(name: '치즈김밥', category: '김밥', price: 4200, description: '부드러운 체다치즈가 들어간 고소한 김밥', image: 'assets/images/cheese_gimbap.png', order: 3),
+          MenuItem(name: '김치김밥', category: '김밥', price: 4200, description: '매콤 칼칼한 김치가 아삭 씹히는 김밥', image: 'assets/images/kimchi_gimbap.png', isNew: true, order: 4),
+          MenuItem(name: '돈가스김밥', category: '김밥', price: 4800, description: '바삭하고 두툼한 돈가스가 들어간 김밥', image: 'assets/images/tonkatsu_gimbap.png', isBest: true, order: 5),
+          MenuItem(name: '스팸김밥', category: '김밥', price: 4500, description: '짭조름하고 고소한 스팸이 듬뿍 들어간 김밥', image: 'assets/images/spam_gimbap.png', order: 6),
+
+          MenuItem(name: '국물떡볶이', category: '분식', price: 5000, description: '매콤달콤한 국물 떡볶이', image: 'assets/images/tteokbokki.png', isBest: true, order: 1),
+          MenuItem(name: '모듬튀김', category: '분식', price: 4500, description: '바삭하게 튀겨낸 다양한 튀김', image: 'assets/images/fried_platter.png', order: 2),
+          MenuItem(name: '찰순대', category: '분식', price: 4000, description: '쫄깃하고 맛있는 전통 순대', image: 'assets/images/soondae.png', order: 3),
+
+          MenuItem(name: '콜라', category: '음료', price: 2000, description: '시원한 캔 콜라', image: 'assets/images/cola.png', order: 1),
+          MenuItem(name: '사이다', category: '음료', price: 2000, description: '청량한 캔 사이다', image: 'assets/images/cider.png', order: 2),
+          MenuItem(name: '쿨피스', category: '음료', price: 1500, description: '달콤하고 상큼한 쿨피스', image: 'assets/images/coolpis.png', order: 3),
+        ];
+
+        final batch = FirebaseFirestore.instance.batch();
+        for (final item in defaultItems) {
+          final docRef = restaurantRef.collection('menuItems').doc(item.name);
+          batch.set(docRef, item.toJson());
+        }
+        await batch.commit();
+
+        menuItems.clear();
+        for (final item in defaultItems) {
+          if (!menuItems.containsKey(item.category)) {
+            menuItems[item.category] = [];
+          }
+          menuItems[item.category]!.add(item);
         }
       }
 

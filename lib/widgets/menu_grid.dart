@@ -64,6 +64,7 @@ class MenuGrid extends StatelessWidget {
                         child: ImageDisplay(
                           imagePath: item.image,
                           imageFolderPath: imageFolderPath,
+                          itemName: item.name,
                         ),
                       ),
                       if (isBest)

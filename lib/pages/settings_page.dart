@@ -462,6 +462,15 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _deleteRestaurant(String name) async {
+    if (name == '조이김밥') {
+      showCustomDialog(
+        context: context,
+        title: '삭제 불가',
+        content: '기본 매장인 [조이김밥]은 삭제할 수 없습니다.',
+      );
+      return;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -586,16 +595,18 @@ class _SettingsPageState extends State<SettingsPage> {
                                 ),
                                 trailing: isActive
                                     ? const Icon(Icons.check, color: Color(0xFF007A87))
-                                    : IconButton(
-                                        icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                        onPressed: () async {
-                                          final verified = await _verifyRestaurantPassword(name, '삭제');
-                                          if (verified) {
-                                            await _deleteRestaurant(name);
-                                            setDialogState(() {});
-                                          }
-                                        },
-                                      ),
+                                    : (name == '조이김밥'
+                                        ? null
+                                        : IconButton(
+                                            icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                            onPressed: () async {
+                                              final verified = await _verifyRestaurantPassword(name, '삭제');
+                                              if (verified) {
+                                                await _deleteRestaurant(name);
+                                                setDialogState(() {});
+                                              }
+                                            },
+                                          )),
                                 onTap: () async {
                                   if (name == _restaurantName) return;
                                   final verified = await _verifyRestaurantPassword(name, '변경');
