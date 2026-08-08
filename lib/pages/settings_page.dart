@@ -378,47 +378,51 @@ class _SettingsPageState extends State<SettingsPage> {
           .doc(newRestaurantName)
           .get();
 
-      if (restaurantDoc.exists) {
-        final data = restaurantDoc.data();
-        final List<String> loadedCategories = List<String>.from(data?['categories'] ?? []);
-        
-        final Map<String, List<MenuItem>> loadedMenuItems = {};
-        final menuItemsSnapshot = await FirebaseFirestore.instance
+      List<String> loadedCategories = [];
+      if (restaurantDoc.exists && restaurantDoc.data() != null && restaurantDoc.data()!.containsKey('categories')) {
+        loadedCategories = List<String>.from(restaurantDoc.data()!['categories'] ?? []);
+      }
+
+      if (loadedCategories.isEmpty) {
+        if (newRestaurantName == '조이김밥') {
+          loadedCategories = ['김밥', '분식', '음료'];
+        } else {
+          loadedCategories = ['메인메뉴', '사이드메뉴', '음료/주류'];
+        }
+        await FirebaseFirestore.instance
             .collection('restaurants')
             .doc(newRestaurantName)
-            .collection('menuItems')
-            .get();
+            .set({'categories': loadedCategories}, SetOptions(merge: true));
+      }
 
-        for (final cat in loadedCategories) {
+      final Map<String, List<MenuItem>> loadedMenuItems = {};
+      for (final cat in loadedCategories) {
+        loadedMenuItems[cat] = [];
+      }
+
+      final menuItemsSnapshot = await FirebaseFirestore.instance
+          .collection('restaurants')
+          .doc(newRestaurantName)
+          .collection('menuItems')
+          .get();
+
+      for (final doc in menuItemsSnapshot.docs) {
+        final menuItem = MenuItem.fromJson(doc.data());
+        final cat = menuItem.category;
+        if (!loadedMenuItems.containsKey(cat)) {
           loadedMenuItems[cat] = [];
         }
-
-        for (final doc in menuItemsSnapshot.docs) {
-          final menuItem = MenuItem.fromJson(doc.data());
-          final cat = menuItem.category;
-          if (loadedCategories.contains(cat)) {
-            loadedMenuItems[cat]!.add(menuItem);
-          }
-        }
-
-        setState(() {
-          _restaurantName = newRestaurantName;
-          _restaurantNameController.text = newRestaurantName;
-          _categories = loadedCategories;
-          _menuItems = loadedMenuItems;
-        });
-        _saveSettings();
-        widget.onUpdate(_categories, _menuItems);
-      } else {
-        setState(() {
-          _restaurantName = newRestaurantName;
-          _restaurantNameController.text = newRestaurantName;
-          _categories = [];
-          _menuItems = {};
-        });
-        _saveSettings();
-        widget.onUpdate(_categories, _menuItems);
+        loadedMenuItems[cat]!.add(menuItem);
       }
+
+      setState(() {
+        _restaurantName = newRestaurantName;
+        _restaurantNameController.text = newRestaurantName;
+        _categories = loadedCategories;
+        _menuItems = loadedMenuItems;
+      });
+      await _saveSettings();
+      widget.onUpdate(_categories, _menuItems);
     } catch (e) {
       print("Error loading restaurant data: $e");
     }
