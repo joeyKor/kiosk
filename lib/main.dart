@@ -22,6 +22,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kiosk/pages/order_history_page.dart';
 import 'package:kiosk/pages/fun_page.dart';
 import 'package:kiosk/pages/owner_mode_page.dart';
+import 'package:kiosk/pages/order_completed_page.dart';
 import 'package:kiosk/widgets/custom_dialog.dart';
 import 'package:kiosk/widgets/pin_dialog.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -70,6 +71,8 @@ class MyApp extends StatelessWidget {
 }
 
 class KioskHomePage extends StatefulWidget {
+  static final GlobalKey cartTargetKey = GlobalKey();
+
   const KioskHomePage({super.key});
 
   @override
@@ -282,21 +285,28 @@ class _KioskHomePageState extends State<KioskHomePage> {
     };
 
     try {
+      final List<CartItem> orderedItems = List.from(cart.items);
       await FirebaseFirestore.instance.collection('orders').add(orderData);
 
       cart.clearCart();
 
       if (mounted) {
-        showCustomDialog(
-          context: context,
-          title: '주문 완료',
-          content: '주문이 성공적으로 완료되었습니다!',
-        );
         setState(() {
           _showCart = false;
           _showWelcome = true;
         });
         _checkOrderHistory();
+
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OrderCompletedPage(
+              tableNumber: _tableNumber,
+              orderedItems: orderedItems,
+              imageFolderPath: _imageFolderPath,
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -744,7 +754,19 @@ class _KioskHomePageState extends State<KioskHomePage> {
               width: double.infinity,
               height: 70,
               child: ElevatedButton(
-                onPressed: cart.items.isEmpty ? null : _showPaymentDialog,
+                onPressed: cart.items.isEmpty
+                    ? null
+                    : () {
+                        if (_restaurantName.isEmpty || _tableNumber.isEmpty) {
+                          showCustomDialog(
+                            context: context,
+                            title: '알림',
+                            content: '음식점 이름과 테이블 번호를 먼저 설정해주세요.',
+                          );
+                          return;
+                        }
+                        _submitOrder('주문');
+                      },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE55A44),
                   foregroundColor: Colors.white,
@@ -1050,6 +1072,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
           Consumer<ShoppingCart>(
             builder: (context, cart, child) {
               return ElevatedButton(
+                key: KioskHomePage.cartTargetKey,
                 onPressed: () {
                   setState(() {
                     _showCart = true;

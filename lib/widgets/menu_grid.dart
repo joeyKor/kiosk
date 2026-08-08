@@ -158,11 +158,11 @@ class MenuGrid extends StatelessWidget {
                                   return ElevatedButton(
                                     onPressed: () {
                                       context.read<ShoppingCart>().addItem(item, 1);
-                                      // runAddToCartAnimation(
-                                      //   context: btnContext,
-                                      //   targetKey: KioskHomePage.cartTargetKey,
-                                      //   itemName: item.name,
-                                      // );
+                                      runAddToCartAnimation(
+                                        context: btnContext,
+                                        targetKey: KioskHomePage.cartTargetKey,
+                                        itemName: item.name,
+                                      );
                                     },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF1D2026),

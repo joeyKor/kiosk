@@ -224,11 +224,11 @@ class _MenuItemDialogState extends State<MenuItemDialog> {
                                       widget.item,
                                       _quantity,
                                     );
-                                    // runAddToCartAnimation(
-                                    //   context: btnContext,
-                                    //   targetKey: KioskHomePage.cartTargetKey,
-                                    //   itemName: widget.item.name,
-                                    // );
+                                    runAddToCartAnimation(
+                                      context: btnContext,
+                                      targetKey: KioskHomePage.cartTargetKey,
+                                      itemName: widget.item.name,
+                                    );
                                     Navigator.pop(context);
                                   },
                                   style: ElevatedButton.styleFrom(

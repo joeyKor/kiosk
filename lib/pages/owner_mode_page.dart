@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -26,7 +27,8 @@ class OwnerModePage extends StatefulWidget {
   State<OwnerModePage> createState() => _OwnerModePageState();
 }
 
-class _OwnerModePageState extends State<OwnerModePage> {
+class _OwnerModePageState extends State<OwnerModePage>
+    with SingleTickerProviderStateMixin {
   late AudioPlayer _audioPlayer;
   late FlutterTts _flutterTts;
   final Set<String> _announcedOrderIds = {};
@@ -37,11 +39,44 @@ class _OwnerModePageState extends State<OwnerModePage> {
   String _activeTab = 'order'; // 'order' (주문모드), 'completed' (완료내역), 'payment' (결제모드), 'payment_history' (결제내역)
   bool _soundEnabled = true;
 
+  late AnimationController _flashController;
+  late Animation<Color?> _borderColorAnimation;
+  bool _isFlashing = false;
+  Timer? _flashTimer;
+
   @override
   void initState() {
     super.initState();
     _audioPlayer = AudioPlayer();
     _initTts();
+
+    _flashController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+
+    _borderColorAnimation = ColorTween(
+      begin: Colors.red,
+      end: Colors.white,
+    ).animate(_flashController);
+  }
+
+  void _startFlashingBorder() {
+    _flashTimer?.cancel();
+    setState(() {
+      _isFlashing = true;
+    });
+    _flashController.repeat(reverse: true);
+
+    _flashTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        _flashController.stop();
+        _flashController.reset();
+        setState(() {
+          _isFlashing = false;
+        });
+      }
+    });
   }
 
   void _initTts() async {
@@ -52,6 +87,8 @@ class _OwnerModePageState extends State<OwnerModePage> {
 
   @override
   void dispose() {
+    _flashTimer?.cancel();
+    _flashController.dispose();
     _audioPlayer.dispose();
     _flutterTts.stop();
     super.dispose();
@@ -89,6 +126,7 @@ class _OwnerModePageState extends State<OwnerModePage> {
             _playSound();
             _announceTts('$tableNumber번 테이블에 주문이 들어왔습니다.');
           }
+          _startFlashingBorder();
         }
         _announcedOrderIds.add(doc.id);
       }
@@ -113,6 +151,7 @@ class _OwnerModePageState extends State<OwnerModePage> {
             _playSound();
             _announceTts('$tableNumber번 테이블에서 직원 호출이 들어왔습니다.');
           }
+          _startFlashingBorder();
         }
         _announcedCallIds.add(doc.id);
       }
@@ -125,116 +164,132 @@ class _OwnerModePageState extends State<OwnerModePage> {
     final startOfToday = Timestamp.fromDate(DateTime(now.year, now.month, now.day));
     final endOfToday = Timestamp.fromDate(DateTime(now.year, now.month, now.day + 1));
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF12131A), // Dark Background
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Custom Dark Header Bar
-            Container(
-              color: const Color(0xFF000000),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  // Tab Buttons Group 1: 주문
-                  _buildSegmentedGroup([
-                    _buildSegmentedButton(
-                      label: '주문모드',
-                      isActive: _activeTab == 'order',
-                      onTap: () => setState(() => _activeTab = 'order'),
-                      activeColor: const Color(0xFF3B82F6),
-                      isFirst: true,
-                    ),
-                    Container(width: 1, height: 24, color: const Color(0xFF2C2E3E)),
-                    _buildSegmentedButton(
-                      label: '완료내역',
-                      isActive: _activeTab == 'completed',
-                      onTap: () => setState(() => _activeTab = 'completed'),
-                      activeColor: const Color(0xFF3B82F6),
-                      isLast: true,
-                    ),
-                  ]),
-                  const SizedBox(width: 12),
-                  // Tab Buttons Group 2: 결제
-                  _buildSegmentedGroup([
-                    _buildSegmentedButton(
-                      label: '결제모드',
-                      isActive: _activeTab == 'payment',
-                      onTap: () => setState(() => _activeTab = 'payment'),
-                      activeColor: const Color(0xFF3B82F6),
-                      isFirst: true,
-                    ),
-                    Container(width: 1, height: 24, color: const Color(0xFF2C2E3E)),
-                    _buildSegmentedButton(
-                      label: '결제내역',
-                      isActive: _activeTab == 'payment_history',
-                      onTap: () => setState(() => _activeTab = 'payment_history'),
-                      activeColor: const Color(0xFF3B82F6),
-                      isLast: true,
-                    ),
-                  ]),
-                  const SizedBox(width: 16),
-                  // Sound Toggle Button (Yellow/Gold)
-                  GestureDetector(
-                    onTap: () => setState(() => _soundEnabled = !_soundEnabled),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: _soundEnabled ? const Color(0xFFECC94B) : const Color(0xFF2C2E3E),
-                        borderRadius: BorderRadius.circular(4),
+    return AnimatedBuilder(
+      animation: _borderColorAnimation,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            border: _isFlashing
+                ? Border.all(
+                    color: _borderColorAnimation.value ?? Colors.red,
+                    width: 6.0,
+                  )
+                : null,
+          ),
+          child: child,
+        );
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF12131A), // Dark Background
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Custom Dark Header Bar
+              Container(
+                color: const Color(0xFF000000),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    // Tab Buttons Group 1: 주문
+                    _buildSegmentedGroup([
+                      _buildSegmentedButton(
+                        label: '주문모드',
+                        isActive: _activeTab == 'order',
+                        onTap: () => setState(() => _activeTab = 'order'),
+                        activeColor: const Color(0xFF3B82F6),
+                        isFirst: true,
                       ),
-                      child: Text(
-                        _soundEnabled ? '음향ON' : '음향OFF',
-                        style: TextStyle(
-                          color: _soundEnabled ? Colors.black : Colors.grey,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                      Container(width: 1, height: 24, color: const Color(0xFF2C2E3E)),
+                      _buildSegmentedButton(
+                        label: '완료내역',
+                        isActive: _activeTab == 'completed',
+                        onTap: () => setState(() => _activeTab = 'completed'),
+                        activeColor: const Color(0xFF3B82F6),
+                        isLast: true,
+                      ),
+                    ]),
+                    const SizedBox(width: 12),
+                    // Tab Buttons Group 2: 결제
+                    _buildSegmentedGroup([
+                      _buildSegmentedButton(
+                        label: '결제모드',
+                        isActive: _activeTab == 'payment',
+                        onTap: () => setState(() => _activeTab = 'payment'),
+                        activeColor: const Color(0xFF3B82F6),
+                        isFirst: true,
+                      ),
+                      Container(width: 1, height: 24, color: const Color(0xFF2C2E3E)),
+                      _buildSegmentedButton(
+                        label: '결제내역',
+                        isActive: _activeTab == 'payment_history',
+                        onTap: () => setState(() => _activeTab = 'payment_history'),
+                        activeColor: const Color(0xFF3B82F6),
+                        isLast: true,
+                      ),
+                    ]),
+                    const SizedBox(width: 16),
+                    // Sound Toggle Button (Yellow/Gold)
+                    GestureDetector(
+                      onTap: () => setState(() => _soundEnabled = !_soundEnabled),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _soundEnabled ? const Color(0xFFECC94B) : const Color(0xFF2C2E3E),
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Refresh Button
-                  IconButton(
-                    icon: const Icon(Icons.refresh, color: Colors.white),
-                    onPressed: () => setState(() {}),
-                  ),
-                  const Spacer(),
-                  // Shop Modify Button (가게 수정)
-                  _buildHeaderButton(
-                    label: '가게 수정',
-                    isActive: false,
-                    onTap: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SettingsPage(
-                            categories: widget.categories,
-                            menuItems: widget.menuItems,
-                            onUpdate: widget.onUpdate,
-                            imageFolderPath: widget.imageFolderPath,
+                        child: Text(
+                          _soundEnabled ? '음향ON' : '음향OFF',
+                          style: TextStyle(
+                            color: _soundEnabled ? Colors.black : Colors.grey,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
                         ),
-                      );
-                    },
-                    color: const Color(0xFF2C2E3E),
-                  ),
-                  const SizedBox(width: 8),
-                  // Exit Button (나가기)
-                  _buildHeaderButton(
-                    label: '나가기',
-                    isActive: false,
-                    onTap: () => Navigator.of(context).pop(),
-                    color: const Color(0xFF2C2E3E),
-                  ),
-                ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Refresh Button
+                    IconButton(
+                      icon: const Icon(Icons.refresh, color: Colors.white),
+                      onPressed: () => setState(() {}),
+                    ),
+                    const Spacer(),
+                    // Shop Modify Button (가게 수정)
+                    _buildHeaderButton(
+                      label: '가게 수정',
+                      isActive: false,
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SettingsPage(
+                              categories: widget.categories,
+                              menuItems: widget.menuItems,
+                              onUpdate: widget.onUpdate,
+                              imageFolderPath: widget.imageFolderPath,
+                            ),
+                          ),
+                        );
+                      },
+                      color: const Color(0xFF2C2E3E),
+                    ),
+                    const SizedBox(width: 8),
+                    // Exit Button (나가기)
+                    _buildHeaderButton(
+                      label: '나가기',
+                      isActive: false,
+                      onTap: () => Navigator.of(context).pop(),
+                      color: const Color(0xFF2C2E3E),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            // Dashboard Content Body
-            Expanded(
-              child: _buildBody(startOfToday, endOfToday),
-            ),
-          ],
+              // Dashboard Content Body
+              Expanded(
+                child: _buildBody(startOfToday, endOfToday),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -354,7 +409,42 @@ class _OwnerModePageState extends State<OwnerModePage> {
                 });
               }
 
-              if (activeOrders.isEmpty && calls.isEmpty) {
+              final List<_OwnerCardData> combinedCards = [];
+
+              for (final doc in activeOrders) {
+                final data = doc.data() as Map<String, dynamic>;
+                final time = (data['orderTime'] as Timestamp).toDate();
+                final rawTable = data['tableNumber'] as String? ?? '';
+                final tableNum = rawTable.replaceAll(RegExp(r'[^0-9]'), '');
+
+                combinedCards.add(_OwnerCardData(
+                  id: doc.id,
+                  isCall: false,
+                  tableNumber: tableNum.isEmpty ? rawTable : tableNum,
+                  time: time,
+                  items: data['items'] as List<dynamic>?,
+                  reference: doc.reference,
+                ));
+              }
+
+              for (final doc in calls) {
+                final data = doc.data() as Map<String, dynamic>;
+                final time = (data['time'] as Timestamp).toDate();
+                final rawTable = data['tableNumber'] as String? ?? '';
+                final tableNum = rawTable.replaceAll(RegExp(r'[^0-9]'), '');
+
+                combinedCards.add(_OwnerCardData(
+                  id: doc.id,
+                  isCall: true,
+                  tableNumber: tableNum.isEmpty ? rawTable : tableNum,
+                  time: time,
+                  reference: doc.reference,
+                ));
+              }
+
+              combinedCards.sort((a, b) => a.time.compareTo(b.time));
+
+              if (combinedCards.isEmpty) {
                 return const Center(
                   child: Text(
                     '진행 중인 주문이나 호출이 없습니다.',
@@ -363,148 +453,149 @@ class _OwnerModePageState extends State<OwnerModePage> {
                 );
               }
 
-              return Row(
-                children: [
-                  // Active Orders Column
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Text(
-                            '진행 주문 내역',
-                            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        Expanded(
-                          child: activeOrders.isEmpty
-                              ? const Center(child: Text('진행 중인 주문이 없습니다.', style: TextStyle(color: Colors.grey)))
-                              : ListView.builder(
-                                  itemCount: activeOrders.length,
-                                  itemBuilder: (context, index) {
-                                    final orderDoc = activeOrders[index];
-                                    final orderData = orderDoc.data() as Map<String, dynamic>;
-                                    final orderTime = (orderData['orderTime'] as Timestamp).toDate();
-                                    final items = orderData['items'] as List<dynamic>;
-                                    final totalPrice = orderData['totalPrice'] as int;
-                                    final tableNumber = orderData['tableNumber'] as String;
-
-                                    return Card(
-                                      color: const Color(0xFF1E202C),
-                                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16.0),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Text(
-                                                  '테이블: $tableNumber',
-                                                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                                                ),
-                                                Text(
-                                                  DateFormat('HH:mm').format(orderTime),
-                                                  style: const TextStyle(color: Colors.grey, fontSize: 14),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 12),
-                                            ...items.map((item) {
-                                              return Padding(
-                                                padding: const EdgeInsets.symmetric(vertical: 4.0),
-                                                child: Text(
-                                                  '• ${item['name']} x${item['quantity']}',
-                                                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                                                ),
-                                              );
-                                            }).toList(),
-                                            const SizedBox(height: 12),
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Text(
-                                                  '${NumberFormat('#,##0', 'ko_KR').format(totalPrice)}원',
-                                                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                                                ),
-                                                ElevatedButton(
-                                                  onPressed: () {
-                                                    orderDoc.reference.update({'completed': true});
-                                                  },
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: const Color(0xFF3B82F6),
-                                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                                  ),
-                                                  child: const Text('완료', style: TextStyle(color: Colors.white)),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 1.25,
                   ),
-                  const VerticalDivider(color: Colors.grey, thickness: 0.5),
-                  // Active Calls Column
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Text(
-                            '직원 호출 내역',
-                            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  itemCount: combinedCards.length,
+                  itemBuilder: (context, index) {
+                    final card = combinedCards[index];
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E202C),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header Row: Table Number Box, Time, [호출] badge, OK button
+                          Row(
+                            children: [
+                              Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  card.tableNumber,
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                DateFormat('HH:mm').format(card.time),
+                                style: const TextStyle(
+                                  color: Color(0xFFEC407A),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              if (card.isCall) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE55A44),
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                  child: const Text(
+                                    '[호출]',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              const Spacer(),
+                              GestureDetector(
+                                onTap: () {
+                                  if (card.isCall) {
+                                    card.reference.delete();
+                                  } else {
+                                    card.reference.update({'completed': true});
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF007A87),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'OK',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        Expanded(
-                          child: calls.isEmpty
-                              ? const Center(child: Text('호출 내역이 없습니다.', style: TextStyle(color: Colors.grey)))
-                              : ListView.builder(
-                                  itemCount: calls.length,
-                                  itemBuilder: (context, index) {
-                                    final callDoc = calls[index];
-                                    final callData = callDoc.data() as Map<String, dynamic>;
-                                    final callTime = (callData['time'] as Timestamp).toDate();
-                                    final tableNumber = callData['tableNumber'] as String;
-
-                                    return Card(
-                                      color: const Color(0xFF1E202C),
-                                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                      child: ListTile(
-                                        title: Text(
-                                          '테이블: $tableNumber',
-                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                          const SizedBox(height: 16),
+                          // Content: Order Items list OR Call Icon & Text
+                          Expanded(
+                            child: card.isCall
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: const [
+                                        Icon(
+                                          Icons.notifications_active,
+                                          color: Color(0xFFE55A44),
+                                          size: 44,
                                         ),
-                                        subtitle: Text(
-                                          DateFormat('HH:mm:ss').format(callTime),
-                                          style: const TextStyle(color: Colors.grey),
-                                        ),
-                                        trailing: ElevatedButton(
-                                          onPressed: () {
-                                            callDoc.reference.delete();
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFF007A87),
+                                        SizedBox(height: 12),
+                                        Text(
+                                          '직원 호출',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
                                           ),
-                                          child: const Text('확인', style: TextStyle(color: Colors.white)),
                                         ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                                      ],
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    itemCount: card.items?.length ?? 0,
+                                    itemBuilder: (context, itemIdx) {
+                                      final item = card.items![itemIdx];
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                        child: Text(
+                                          '${item['name']} x ${item['quantity']}',
+                                          style: const TextStyle(
+                                            color: Color(0xFFF3C63F),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               );
             },
           );
@@ -539,58 +630,112 @@ class _OwnerModePageState extends State<OwnerModePage> {
             );
           }
 
-          return ListView.builder(
-            itemCount: completedOrders.length,
-            itemBuilder: (context, index) {
-              final orderDoc = completedOrders[index];
-              final orderData = orderDoc.data() as Map<String, dynamic>;
-              final orderTime = (orderData['orderTime'] as Timestamp).toDate();
-              final items = orderData['items'] as List<dynamic>;
-              final totalPrice = orderData['totalPrice'] as int;
-              final tableNumber = orderData['tableNumber'] as String;
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 1.25,
+              ),
+              itemCount: completedOrders.length,
+              itemBuilder: (context, index) {
+                final orderDoc = completedOrders[index];
+                final orderData = orderDoc.data() as Map<String, dynamic>;
+                final orderTime = (orderData['orderTime'] as Timestamp).toDate();
+                final items = orderData['items'] as List<dynamic>? ?? [];
+                final rawTable = orderData['tableNumber'] as String? ?? '';
+                final tableNum = rawTable.replaceAll(RegExp(r'[^0-9]'), '');
+                final displayTable = tableNum.isEmpty ? rawTable : tableNum;
 
-              return Card(
-                color: const Color(0xFF1E202C),
-                margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                child: ListTile(
-                  title: Text(
-                    '테이블: $tableNumber (${DateFormat('HH:mm').format(orderTime)})',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E202C),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: items.map((item) {
-                        return Text(
-                          '${item['name']} x${item['quantity']}',
-                          style: const TextStyle(color: Colors.grey, fontSize: 16),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '${NumberFormat('#,##0', 'ko_KR').format(totalPrice)}원',
-                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      // Top Row: Table Box, Time, 복구 Button
+                      Row(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              displayTable,
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            DateFormat('HH:mm').format(orderTime),
+                            style: const TextStyle(
+                              color: Color(0xFFEC407A),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () {
+                              orderDoc.reference.update({'completed': false});
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE55A44),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                '복구',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      ElevatedButton(
-                        onPressed: () {
-                          orderDoc.reference.update({'completed': false});
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[700],
+                      const SizedBox(height: 16),
+                      // Content: Items List
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: items.length,
+                          itemBuilder: (context, itemIdx) {
+                            final item = items[itemIdx];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Text(
+                                '${item['name']} x ${item['quantity']}',
+                                style: const TextStyle(
+                                  color: Color(0xFFF3C63F),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                        child: const Text('되돌리기', style: TextStyle(color: Colors.white)),
                       ),
                     ],
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           );
         },
       );
@@ -604,4 +749,22 @@ class _OwnerModePageState extends State<OwnerModePage> {
       );
     }
   }
+}
+
+class _OwnerCardData {
+  final String id;
+  final bool isCall;
+  final String tableNumber;
+  final DateTime time;
+  final List<dynamic>? items;
+  final DocumentReference reference;
+
+  _OwnerCardData({
+    required this.id,
+    required this.isCall,
+    required this.tableNumber,
+    required this.time,
+    this.items,
+    required this.reference,
+  });
 }
