@@ -20,6 +20,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:kiosk/firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kiosk/pages/order_history_page.dart';
+import 'package:kiosk/pages/fun_page.dart';
+import 'package:kiosk/pages/owner_mode_page.dart';
 import 'package:kiosk/widgets/custom_dialog.dart';
 import 'package:kiosk/widgets/pin_dialog.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -84,6 +86,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
   bool _hasOrders = false;
   bool _showCart = false;
   bool _showWelcome = true;
+  String _activeSidebarTab = 'menu';
 
   @override
   void initState() {
@@ -762,92 +765,256 @@ class _KioskHomePageState extends State<KioskHomePage> {
     );
   }
 
-  Widget _buildNormalPanel(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            if (_tableNumber.isNotEmpty)
-              Text(
-                '테이블: $_tableNumber',
-                style: const TextStyle(
-                  fontSize: 18,
+  Widget _buildLeftSidebar(BuildContext context) {
+    return Container(
+      width: 110,
+      color: const Color(0xFF1E202C), // Dark charcoal/navy color
+      child: Column(
+        children: [
+          // Logo / Header
+          GestureDetector(
+            onLongPress: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => OwnerModePage(
+                    restaurantName: _restaurantName,
+                    categories: _categories,
+                    menuItems: _menuItems,
+                    imageFolderPath: _imageFolderPath,
+                    onUpdate: _updateCategoriesAndMenus,
+                  ),
+                ),
+              );
+              await _loadSettings();
+              await _loadData();
+              _checkOrderHistory();
+            },
+            child: Container(
+              width: double.infinity,
+              height: 100,
+              color: Colors.white,
+              alignment: Alignment.center,
+              child: const Text(
+                '조이\n오더',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                  height: 1.2,
                 ),
               ),
-            IconButton(
-              icon: const Icon(Icons.settings),
-              onPressed: () async {
-                final adminPin = await _getAdminPin();
-                final bool? isCorrect = await showDialog<bool>(
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Restaurant and Table info
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Text(
+              _restaurantName.isEmpty ? '조이김밥' : _restaurantName,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2C2E3E),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              _tableNumber.isEmpty ? '2번 테이블' : (_tableNumber.contains('테이블') ? _tableNumber : '$_tableNumber번 테이블'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(height: 30),
+          // Sidebar menu items
+          // 1. 메뉴주문 (Active)
+          _buildSidebarNavItem(
+            icon: Icons.restaurant_menu,
+            label: '메뉴주문',
+            isActive: _activeSidebarTab == 'menu',
+            onTap: () {
+              setState(() {
+                _activeSidebarTab = 'menu';
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          // 2. FUN (Inactive)
+          _buildSidebarNavItem(
+            icon: Icons.sentiment_satisfied_alt_outlined,
+            label: 'FUN',
+            isActive: _activeSidebarTab == 'fun',
+            onTap: () {
+              setState(() {
+                _activeSidebarTab = 'fun';
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          // 3. LANG (Inactive)
+          _buildSidebarNavItem(
+            icon: Icons.language,
+            label: 'LANG',
+            isActive: _activeSidebarTab == 'lang',
+            onTap: () {
+              setState(() {
+                _activeSidebarTab = 'lang';
+              });
+            },
+          ),
+          const Spacer(),
+          // Call Staff Button (Circle Teal)
+          GestureDetector(
+            onTap: () async {
+              if (_restaurantName.isNotEmpty && _tableNumber.isNotEmpty) {
+                await FirebaseFirestore.instance.collection('calls').add({
+                  'restaurantName': _restaurantName,
+                  'tableNumber': _tableNumber,
+                  'time': Timestamp.now(),
+                  'confirmed': false,
+                });
+                showCustomDialog(
                   context: context,
-                  builder: (context) => PinDialog(correctPin: adminPin),
+                  title: '직원 호출',
+                  content: '직원을 호출했습니다. 잠시만 기다려주세요.',
                 );
+              } else {
+                showCustomDialog(
+                  context: context,
+                  title: '알림',
+                  content: '음식점 이름과 테이블 번호를 먼저 설정해주세요.',
+                );
+              }
+            },
+            child: Container(
+              width: 66,
+              height: 66,
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: const BoxDecoration(
+                color: Color(0xFF007A87),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: const Text(
+                '직원\n호출',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  height: 1.2,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                if (isCorrect == true) {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SettingsPage(
-                        categories: _categories,
-                        menuItems: _menuItems,
-                        onUpdate: _updateCategoriesAndMenus,
-                        imageFolderPath: _imageFolderPath,
-                      ),
-                    ),
-                  );
-                  await _loadSettings(); // Reload settings after returning from SettingsPage
-                  await _loadData(); // Reload data for the new restaurant name
-                  _checkOrderHistory();
-                } else if (isCorrect == false) {
-                  showCustomDialog(
-                    context: context,
-                    title: 'PIN 오류',
-                    content: '잘못된 PIN 번호입니다.',
-                  );
-                }
-              },
+  Widget _buildSidebarNavItem({
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 80,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isActive ? const Color(0xFF2C2E3E) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isActive ? Colors.white : Colors.grey,
+              size: 24,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isActive ? Colors.white : Colors.grey,
+                fontSize: 12,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
-        ElevatedButton(
-          onPressed: () async {
-            if (_restaurantName.isNotEmpty && _tableNumber.isNotEmpty) {
-              await FirebaseFirestore.instance.collection('calls').add({
-                'restaurantName': _restaurantName,
-                'tableNumber': _tableNumber,
-                'time': Timestamp.now(),
-                'confirmed': false,
-              });
-              showCustomDialog(
-                context: context,
-                title: '직원 호출',
-                content: '직원을 호출했습니다. 잠시만 기다려주세요.',
-              );
-            } else {
-              showCustomDialog(
-                context: context,
-                title: '알림',
-                content: '음식점 이름과 테이블 번호를 먼저 설정해주세요.',
-              );
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green[800],
-            minimumSize: const Size(double.infinity, 50),
+      ),
+    );
+  }
+
+  Widget _buildCategoryTabBar(BuildContext context) {
+    final tabController = DefaultTabController.of(context);
+    return Container(
+      color: Colors.white,
+      height: 60,
+      child: Row(
+        children: [
+          // Left Scroll Arrow
+          IconButton(
+            icon: const Icon(Icons.chevron_left, color: Colors.grey),
+            onPressed: () {
+              if (tabController != null && tabController.index > 0) {
+                tabController.animateTo(tabController.index - 1);
+              }
+            },
           ),
-          child: const Text(
-            '직원호출',
-            style: TextStyle(color: Colors.white, fontSize: 20),
+          Expanded(
+            child: TabBar(
+              isScrollable: true,
+              labelColor: const Color(0xFF007A87),
+              unselectedLabelColor: Colors.grey[600],
+              labelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              unselectedLabelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+              indicatorColor: const Color(0xFF007A87),
+              indicatorWeight: 3.0,
+              indicatorSize: TabBarIndicatorSize.label,
+              tabs: _categories.map((String name) => Tab(text: name)).toList(),
+            ),
           ),
-        ),
-        const Spacer(),
-        SizedBox(
-          width: double.infinity,
-          height: 80,
-          child: ElevatedButton(
+          // Right Scroll Arrow
+          IconButton(
+            icon: const Icon(Icons.chevron_right, color: Colors.grey),
+            onPressed: () {
+              if (tabController != null && tabController.index < _categories.length - 1) {
+                tabController.animateTo(tabController.index + 1);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingActionBar(BuildContext context) {
+    return Positioned(
+      bottom: 24,
+      right: 24,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 주문내역 Button
+          ElevatedButton.icon(
             onPressed: _hasOrders
                 ? () {
                     Navigator.push(
@@ -861,23 +1028,26 @@ class _KioskHomePageState extends State<KioskHomePage> {
                     );
                   }
                 : null,
+            icon: const Icon(Icons.assignment_outlined, size: 20, color: Colors.grey),
+            label: const Text(
+              '주문내역',
+              style: TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              elevation: 4,
+              shadowColor: Colors.black26,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(4),
+                side: BorderSide(color: Colors.grey[300]!, width: 1),
               ),
             ),
-            child: const Text(
-              '주문내역',
-              style: TextStyle(fontSize: 24, color: Colors.white),
-            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          height: 120,
-          child: Consumer<ShoppingCart>(
+          const SizedBox(width: 12),
+          // 주문하기 Button
+          Consumer<ShoppingCart>(
             builder: (context, cart, child) {
               return ElevatedButton(
                 onPressed: () {
@@ -886,35 +1056,40 @@ class _KioskHomePageState extends State<KioskHomePage> {
                   });
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: const Color(0xFF007A87),
+                  elevation: 4,
+                  shadowColor: Colors.black26,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
                       '주문하기',
-                      style: TextStyle(
-                        fontSize: 28,
-                        color: Colors.white,
-                      ),
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(6),
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
                       ),
+                      constraints: const BoxConstraints(
+                        minWidth: 20,
+                        minHeight: 20,
+                      ),
                       child: Text(
                         '${cart.itemCount}',
                         style: const TextStyle(
-                          color: Colors.red,
-                          fontSize: 20,
+                          color: Color(0xFF007A87),
+                          fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ],
@@ -922,8 +1097,8 @@ class _KioskHomePageState extends State<KioskHomePage> {
               );
             },
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -937,59 +1112,87 @@ class _KioskHomePageState extends State<KioskHomePage> {
       key: ValueKey(_categories.length),
       length: _categories.length,
       child: Scaffold(
+        backgroundColor: const Color(0xFFF9F9FB),
         body: Row(
           children: [
+            // Left Sidebar
+            _buildLeftSidebar(context),
+            // Main Content Area
             Expanded(
               child: SafeArea(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    : _activeSidebarTab == 'fun'
+                        ? const RouletteWidget()
+                        : Stack(
                             children: [
-                              const SizedBox(width: 48),
+                              Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Top Category Tab Bar
+                              Builder(
+                                builder: (tabContext) => _buildCategoryTabBar(tabContext),
+                              ),
+                              // Section Title & Menu Grid
                               Expanded(
-                                child: TabBar(
-                                  isScrollable: true,
-                                  labelStyle: const TextStyle(fontSize: 20),
-                                  tabs: _categories
-                                      .map((String name) => Tab(text: name))
-                                      .toList(),
-                                ),
+                                child: _categories.isEmpty
+                                    ? const Center(
+                                        child: Text(
+                                          '메뉴가 없습니다. 설정에서 카테고리와 메뉴를 추가해주세요.',
+                                        ),
+                                      )
+                                    : TabBarView(
+                                        children: _categories.map((String name) {
+                                          return Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Padding(
+                                                padding: const EdgeInsets.only(left: 20.0, top: 16.0, bottom: 8.0),
+                                                child: Text(
+                                                  name,
+                                                  style: const TextStyle(
+                                                    fontSize: 22,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF1E2022),
+                                                  ),
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: MenuGrid(
+                                                  items: _menuItems[name] ?? [],
+                                                  imageFolderPath: _imageFolderPath,
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        }).toList(),
+                                      ),
                               ),
                             ],
                           ),
-                          Expanded(
-                            child: _categories.isEmpty
-                                ? const Center(
-                                    child: Text(
-                                      '메뉴가 없습니다. 설정에서 카테고리와 메뉴를 추가해주세요.',
-                                    ),
-                                  )
-                                : TabBarView(
-                                    children: _categories.map((String name) {
-                                      return MenuGrid(
-                                        items: _menuItems[name] ?? [],
-                                        imageFolderPath: _imageFolderPath,
-                                      );
-                                    }).toList(),
-                                  ),
-                          ),
+                          // Floating Action Buttons
+                          if (!_showCart) _buildFloatingActionBar(context),
                         ],
                       ),
               ),
             ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: _showCart ? MediaQuery.of(context).size.width * 0.48 : 220,
-              padding: _showCart ? EdgeInsets.zero : const EdgeInsets.symmetric(vertical: 20, horizontal: 15),
-              decoration: BoxDecoration(
-                color: _showCart ? Colors.white : Colors.grey[100],
-                border: Border(left: BorderSide(color: Colors.grey[300]!)),
+            // Slide-out Cart Panel
+            if (_showCart)
+              Container(
+                width: MediaQuery.of(context).size.width * 0.45,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border(left: BorderSide(color: Colors.grey[300]!)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 10,
+                      offset: const Offset(-5, 0),
+                    ),
+                  ],
+                ),
+                child: _buildCartPanel(context),
               ),
-              child: _showCart ? _buildCartPanel(context) : _buildNormalPanel(context),
-            ),
           ],
         ),
       ),
