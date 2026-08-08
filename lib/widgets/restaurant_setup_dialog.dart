@@ -160,11 +160,8 @@ class _RestaurantSetupDialogState extends State<RestaurantSetupDialog> {
 
                 try {
                   await FirebaseFirestore.instance.collection('restaurants').doc(newName).set({
-                    'categories': ['김밥류', '분식류', '음료/기타'],
-                    'password': pwd,
+                    'categories': [],
                     'pin': pwd,
-                    'pinNumber': pwd,
-                    'pinCode': pwd,
                     'createdAt': FieldValue.serverTimestamp(),
                   }, SetOptions(merge: true));
 

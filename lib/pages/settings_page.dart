@@ -383,12 +383,8 @@ class _SettingsPageState extends State<SettingsPage> {
         loadedCategories = List<String>.from(restaurantDoc.data()!['categories'] ?? []);
       }
 
-      if (loadedCategories.isEmpty) {
-        if (newRestaurantName == '조이김밥') {
-          loadedCategories = ['김밥', '분식', '음료'];
-        } else {
-          loadedCategories = ['메인메뉴', '사이드메뉴', '음료/주류'];
-        }
+      if (loadedCategories.isEmpty && newRestaurantName == '조이김밥') {
+        loadedCategories = ['김밥', '분식', '음료'];
         await FirebaseFirestore.instance
             .collection('restaurants')
             .doc(newRestaurantName)
@@ -485,11 +481,8 @@ class _SettingsPageState extends State<SettingsPage> {
               }
 
               await FirebaseFirestore.instance.collection('restaurants').doc(name).set({
-                'categories': ['김밥류', '분식류', '음료/기타'],
-                'password': pin,
+                'categories': [],
                 'pin': pin,
-                'pinNumber': pin,
-                'pinCode': pin,
                 'createdAt': FieldValue.serverTimestamp(),
               }, SetOptions(merge: true));
 

@@ -183,8 +183,8 @@ class StorePinDialog extends StatefulWidget {
 
     final doc = await FirebaseFirestore.instance.collection('restaurants').doc(restaurantName).get();
     final data = doc.data();
-    final storePassword = (data?['password'] as String?) ??
-        (data?['pin'] as String?) ??
+    final storePassword = (data?['pin'] as String?) ??
+        (data?['password'] as String?) ??
         (data?['pinNumber'] as String?) ??
         (data?['pinCode'] as String?);
 
