@@ -69,97 +69,11 @@ class _RestaurantSetupDialogState extends State<RestaurantSetupDialog> {
   }
 
   Future<bool> _verifyRestaurantPassword(String restaurantName, String actionTitle) async {
-    final prefs = await SharedPreferences.getInstance();
-    final masterPin = prefs.getString('adminPin') ?? '0000';
-
-    final doc = await FirebaseFirestore.instance.collection('restaurants').doc(restaurantName).get();
-    final storePassword = doc.data()?['password'] as String?;
-
-    if (!mounted) return false;
-
-    String enteredPin = '';
-    final bool? isVerified = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E2229),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(
-            '[$restaurantName] 매장 비밀번호 확인',
-            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '매장 [$actionTitle]을 진행하려면 매장 비밀번호(4자리)를 입력해주세요.',
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                maxLength: 4,
-                autofocus: true,
-                style: const TextStyle(color: Colors.white, fontSize: 22, letterSpacing: 8),
-                textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  counterText: '',
-                  hintText: '••••',
-                  hintStyle: const TextStyle(color: Colors.white24),
-                  enabledBorder: OutlineInputBorder(
-                    borderSide: const BorderSide(color: Colors.white24),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: const BorderSide(color: Color(0xFF007A87)),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onChanged: (val) => enteredPin = val,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소', style: TextStyle(color: Colors.white54)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF007A87),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () {
-                if (enteredPin.isEmpty) return;
-                bool isCorrect = false;
-                if (storePassword != null && storePassword.isNotEmpty) {
-                  isCorrect = (enteredPin == storePassword || enteredPin == masterPin);
-                } else {
-                  isCorrect = (enteredPin == masterPin);
-                }
-                Navigator.pop(context, isCorrect);
-              },
-              child: const Text('확인'),
-            ),
-          ],
-        );
-      },
+    return await StorePinDialog.show(
+      context,
+      restaurantName: restaurantName,
+      actionTitle: actionTitle,
     );
-
-    if (isVerified != true) {
-      if (mounted && isVerified == false) {
-        showCustomDialog(
-          context: context,
-          title: '비밀번호 오류',
-          content: '비밀번호가 일치하지 않습니다.',
-        );
-      }
-      return false;
-    }
-    return true;
   }
 
   Future<void> _showAddRestaurantDialog() async {

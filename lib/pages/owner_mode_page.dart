@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:kiosk/pages/settings_page.dart';
 import 'package:kiosk/models/menu_item.dart';
+import 'package:kiosk/widgets/custom_dialog.dart';
 
 class OwnerModePage extends StatefulWidget {
   final String restaurantName;
@@ -618,7 +619,9 @@ class _OwnerModePageState extends State<OwnerModePage>
           final docs = snapshot.data?.docs ?? [];
           final completedOrders = docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            return data['completed'] as bool? ?? false;
+            final isCompleted = data['completed'] as bool? ?? false;
+            final isPaid = data['paid'] as bool? ?? false;
+            return isCompleted && !isPaid;
           }).toList();
 
           if (completedOrders.isEmpty) {
@@ -739,14 +742,1037 @@ class _OwnerModePageState extends State<OwnerModePage>
           );
         },
       );
-    } else {
-      // payment and payment_history placeholders
-      return Center(
-        child: Text(
-          '${_activeTab == 'payment' ? '결제모드' : '결제내역'} 내역이 없습니다.',
-          style: const TextStyle(color: Colors.grey, fontSize: 18),
-        ),
+    } else if (_activeTab == 'payment') {
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('orders')
+            .where('restaurantName', isEqualTo: widget.restaurantName)
+            .where('orderTime', isGreaterThanOrEqualTo: startOfToday)
+            .where('orderTime', isLessThan: endOfToday)
+            .orderBy('orderTime', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+          final Map<String, _TablePaymentSummary> tableSummaries = {};
+
+          for (final doc in docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final isPaid = data['paid'] as bool? ?? false;
+            if (isPaid) continue; // Skip already paid orders
+
+            final rawTable = data['tableNumber'] as String? ?? '0';
+            final tableNum = rawTable.replaceAll(RegExp(r'[^0-9]'), '');
+            final displayTable = tableNum.isEmpty ? rawTable : tableNum;
+
+            final summary = tableSummaries.putIfAbsent(
+              displayTable,
+              () => _TablePaymentSummary(displayTable),
+            );
+            summary.orderReferences.add(doc.reference);
+
+            final itemList = data['items'] as List<dynamic>? ?? [];
+            for (final item in itemList) {
+              final name = item['name'] as String? ?? '';
+              final qty = item['quantity'] as int? ?? 1;
+              final unitPrice = item['price'] as int? ?? 0;
+
+              if (summary.items.containsKey(name)) {
+                summary.items[name]!.quantity += qty;
+              } else {
+                summary.items[name] = _AggregatedItem(
+                  name: name,
+                  quantity: qty,
+                  unitPrice: unitPrice,
+                );
+              }
+              summary.totalAmount += (unitPrice * qty);
+            }
+          }
+
+          final summariesList = tableSummaries.values.toList();
+
+          if (summariesList.isEmpty) {
+            return const Center(
+              child: Text(
+                '결제 대기 중인 테이블이 없습니다.',
+                style: TextStyle(color: Colors.grey, fontSize: 18),
+              ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 0.88,
+              ),
+              itemCount: summariesList.length,
+              itemBuilder: (context, index) {
+                final summary = summariesList[index];
+                final aggregatedItems = summary.items.values.toList();
+
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E202C),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top Row: Table Box & 결제하기 Button
+                      Row(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              summary.tableNumber,
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () {
+                              _showTablePaymentDialog(context, summary);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2C2E3E),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.grey[700]!, width: 1),
+                              ),
+                              child: const Text(
+                                '결제하기',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Content: Aggregated Item List with prices
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: aggregatedItems.length,
+                          itemBuilder: (context, itemIdx) {
+                            final item = aggregatedItems[itemIdx];
+                            final lineTotal = item.unitPrice * item.quantity;
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '${item.name} x ${item.quantity}',
+                                    style: const TextStyle(
+                                      color: Color(0xFFF3C63F),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${NumberFormat('#,##0', 'ko_KR').format(lineTotal)}원',
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const Divider(color: Color(0xFF2C2E3E), height: 20),
+                      // Bottom Footer: 총 금액
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            '총 금액',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          Text(
+                            '${NumberFormat('#,##0', 'ko_KR').format(summary.totalAmount)}원',
+                            style: const TextStyle(
+                              color: Color(0xFFF3C63F),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          );
+        },
       );
+    } else {
+      // payment_history tab
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('orders')
+            .where('restaurantName', isEqualTo: widget.restaurantName)
+            .where('orderTime', isGreaterThanOrEqualTo: startOfToday)
+            .where('orderTime', isLessThan: endOfToday)
+            .orderBy('orderTime', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+          final Map<String, _PaidTransactionSummary> transactionSummaries = {};
+
+          for (final doc in docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final isPaid = data['paid'] as bool? ?? false;
+            if (!isPaid) continue; // Only process paid orders in payment_history!
+            final rawTable = data['tableNumber'] as String? ?? '0';
+            final tableNum = rawTable.replaceAll(RegExp(r'[^0-9]'), '');
+            final displayTable = tableNum.isEmpty ? rawTable : tableNum;
+
+            final paymentId = data['paymentId'] as String? ?? doc.id;
+            final paidTime = data['paidTime'] != null
+                ? (data['paidTime'] as Timestamp).toDate()
+                : (data['orderTime'] as Timestamp).toDate();
+
+            final summary = transactionSummaries.putIfAbsent(
+              paymentId,
+              () => _PaidTransactionSummary(
+                paymentId: paymentId,
+                tableNumber: displayTable,
+                paidTime: paidTime,
+              ),
+            );
+            summary.orderReferences.add(doc.reference);
+
+            final itemList = data['items'] as List<dynamic>? ?? [];
+            for (final item in itemList) {
+              final name = item['name'] as String? ?? '';
+              final qty = item['quantity'] as int? ?? 1;
+              final unitPrice = item['price'] as int? ?? 0;
+
+              if (summary.items.containsKey(name)) {
+                summary.items[name]!.quantity += qty;
+              } else {
+                summary.items[name] = _AggregatedItem(
+                  name: name,
+                  quantity: qty,
+                  unitPrice: unitPrice,
+                );
+              }
+              summary.totalAmount += (unitPrice * qty);
+            }
+          }
+
+          final transactionsList = transactionSummaries.values.toList();
+          transactionsList.sort((a, b) => b.paidTime.compareTo(a.paidTime));
+
+          if (transactionsList.isEmpty) {
+            return const Center(
+              child: Text(
+                '결제 완료된 내역이 없습니다.',
+                style: TextStyle(color: Colors.grey, fontSize: 18),
+              ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 0.88,
+              ),
+              itemCount: transactionsList.length,
+              itemBuilder: (context, index) {
+                final summary = transactionsList[index];
+                final aggregatedItems = summary.items.values.toList();
+
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E202C),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top Row: Table Box, Paid Time, 결제완료 Badge
+                      Row(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              summary.tableNumber,
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            DateFormat('HH:mm').format(summary.paidTime),
+                            style: const TextStyle(
+                              color: Color(0xFFEC407A),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF007A87),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              '결제완료',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Content: Aggregated Item List with prices
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: aggregatedItems.length,
+                          itemBuilder: (context, itemIdx) {
+                            final item = aggregatedItems[itemIdx];
+                            final lineTotal = item.unitPrice * item.quantity;
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '${item.name} x ${item.quantity}',
+                                    style: const TextStyle(
+                                      color: Color(0xFFF3C63F),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${NumberFormat('#,##0', 'ko_KR').format(lineTotal)}원',
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const Divider(color: Color(0xFF2C2E3E), height: 20),
+                      // Bottom Footer: 총 금액
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            '총 금액',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          Text(
+                            '${NumberFormat('#,##0', 'ko_KR').format(summary.totalAmount)}원',
+                            style: const TextStyle(
+                              color: Color(0xFFF3C63F),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      );
+    }
+  }
+
+  void _showTablePaymentDialog(BuildContext context, _TablePaymentSummary summary) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF1E202C),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Container(
+            width: 480,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Table ${summary.tableNumber} 결제하기',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white70),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const Divider(color: Color(0xFF2C2E3E), height: 24),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '총 결제금액',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      '${NumberFormat('#,##0', 'ko_KR').format(summary.totalAmount)}원',
+                      style: const TextStyle(
+                        color: Color(0xFFF3C63F),
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 28),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.payments_outlined, color: Colors.white, size: 20),
+                        label: const Text(
+                          '현금결제',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF007A87),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _showCashPaymentDialog(context, summary);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.credit_card, color: Colors.white, size: 20),
+                        label: const Text(
+                          '페이결제',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE55A44),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _showPayPaymentDialog(context, summary);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showPayPaymentDialog(BuildContext context, _TablePaymentSummary summary) {
+    final TextEditingController scannerController = TextEditingController();
+    final FocusNode scannerFocusNode = FocusNode();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF1E222B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            width: 440,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.credit_card, color: Color(0xFF00A896), size: 24),
+                        SizedBox(width: 10),
+                        Text(
+                          '간편 페이 결제',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white70),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Store & Amount Summary Box
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141720),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('결제 매장', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                          Text(
+                            widget.restaurantName.isEmpty ? '던킨도넛' : widget.restaurantName,
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('결제 금액', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                          Text(
+                            '${NumberFormat('#,##0', 'ko_KR').format(summary.totalAmount)}원',
+                            style: const TextStyle(
+                              color: Color(0xFFF3C63F),
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Metallic Payment Terminal Graphic Card
+                Container(
+                  width: double.infinity,
+                  height: 200,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF1F4A57),
+                        Color(0xFF112D36),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'PAYMENT TERMINAL',
+                            style: TextStyle(color: Colors.white38, fontSize: 11, letterSpacing: 1.5, fontWeight: FontWeight.w600),
+                          ),
+                          // IC Chip Graphic
+                          Container(
+                            width: 38,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE5B83B),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Center Scanner Icon
+                      const Icon(
+                        Icons.qr_code_scanner,
+                        color: Colors.white70,
+                        size: 54,
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: const [
+                          Text(
+                            '스캐너에 바코드를 대주세요',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                          Icon(
+                            Icons.wifi,
+                            color: Colors.white38,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Subtitle Guidance
+                const Text(
+                  '스캐너에 페이 바코드(pay계좌번호)를 리딩하면\n자동으로 결제가 완료됩니다.',
+                  style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.4),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+
+                // Scanner Input Barcode Listener Box
+                TextField(
+                  controller: scannerController,
+                  focusNode: scannerFocusNode,
+                  autofocus: true,
+                  style: const TextStyle(color: Color(0xFF00A896), fontSize: 14, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                  decoration: InputDecoration(
+                    hintText: '스캐너 입력 대기 중',
+                    hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
+                    filled: true,
+                    fillColor: const Color(0xFF141720),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: Colors.white12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: Color(0xFF00A896)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onSubmitted: (val) async {
+                    Navigator.pop(context);
+                    await _processTablePayment(summary, '페이결제');
+                    if (context.mounted) {
+                      showCustomDialog(
+                        context: context,
+                        title: '페이 결제 완료',
+                        content: '간편 페이 결제가 성공적으로 완료되었습니다.',
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                // Tap to simulate payment completion button
+                TextButton(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _processTablePayment(summary, '페이결제');
+                    if (context.mounted) {
+                      showCustomDialog(
+                        context: context,
+                        title: '페이 결제 완료',
+                        content: '간편 페이 결제가 성공적으로 완료되었습니다.',
+                      );
+                    }
+                  },
+                  child: const Text('스캔 테스트 (결제 승인)', style: TextStyle(color: Color(0xFF00A896), fontSize: 13)),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCashPaymentDialog(BuildContext context, _TablePaymentSummary summary) {
+    int receivedAmount = 0;
+    final int totalAmount = summary.totalAmount;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final int changeAmount = receivedAmount >= totalAmount ? (receivedAmount - totalAmount) : 0;
+            final int deficitAmount = receivedAmount < totalAmount ? (totalAmount - receivedAmount) : 0;
+            final bool isPayable = receivedAmount >= totalAmount;
+
+            void addCash(int amount) {
+              setModalState(() {
+                receivedAmount += amount;
+              });
+            }
+
+            void setExactCash() {
+              setModalState(() {
+                receivedAmount = totalAmount;
+              });
+            }
+
+            void clearCash() {
+              setModalState(() {
+                receivedAmount = 0;
+              });
+            }
+
+            return Dialog(
+              backgroundColor: const Color(0xFF1E202C),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Container(
+                width: 520,
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '현금 결제 (Table ${summary.tableNumber})',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white70),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const Divider(color: Color(0xFF2C2E3E), height: 20),
+                    const SizedBox(height: 10),
+
+                    // Summary Box
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2C2E3E),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('총 결제금액', style: TextStyle(color: Colors.white70, fontSize: 15)),
+                              Text(
+                                '${NumberFormat('#,##0', 'ko_KR').format(totalAmount)}원',
+                                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const Divider(color: Colors.white12, height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('받은 금액', style: TextStyle(color: Colors.white70, fontSize: 15)),
+                              Text(
+                                '${NumberFormat('#,##0', 'ko_KR').format(receivedAmount)}원',
+                                style: const TextStyle(color: Color(0xFFF3C63F), fontSize: 22, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('거스름돈', style: TextStyle(color: Colors.white70, fontSize: 15)),
+                              Text(
+                                isPayable
+                                    ? '${NumberFormat('#,##0', 'ko_KR').format(changeAmount)}원'
+                                    : '0원',
+                                style: TextStyle(
+                                  color: isPayable ? const Color(0xFF2ECC71) : Colors.grey,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (deficitAmount > 0) ...[
+                            const SizedBox(height: 6),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                '부족 금액: ${NumberFormat('#,##0', 'ko_KR').format(deficitAmount)}원',
+                                style: const TextStyle(color: Color(0xFFE55A44), fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Quick Cash Addition Buttons (1000, 5000, 10000, 50000)
+                    const Text('빠른 현금 입력', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(child: _buildCashAddButton('+1,000', () => addCash(1000))),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildCashAddButton('+5,000', () => addCash(5000))),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildCashAddButton('+10,000', () => addCash(10000))),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildCashAddButton('+50,000', () => addCash(50000))),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.check_circle_outline, size: 18),
+                            label: Text('단순 전액 (${NumberFormat('#,##0', 'ko_KR').format(totalAmount)}원)'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF007A87),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: setExactCash,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.refresh, size: 18),
+                            label: const Text('초기화'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white70,
+                              side: const BorderSide(color: Colors.white24),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: clearCash,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Bottom Action Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('취소', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isPayable ? const Color(0xFF2ECC71) : Colors.grey[800],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: isPayable
+                                ? () async {
+                                    Navigator.pop(context);
+                                    await _processTablePayment(
+                                      summary,
+                                      '현금결제',
+                                      receivedAmount: receivedAmount,
+                                      changeAmount: changeAmount,
+                                    );
+                                    if (context.mounted) {
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          backgroundColor: const Color(0xFF1E202C),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                          title: const Text('현금 결제 완료', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                          content: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                children: [
+                                                  const Text('받은 금액:', style: TextStyle(color: Colors.white70)),
+                                                  Text('${NumberFormat('#,##0', 'ko_KR').format(receivedAmount)}원', style: const TextStyle(color: Color(0xFFF3C63F), fontWeight: FontWeight.bold)),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                children: [
+                                                  const Text('거스름돈:', style: TextStyle(color: Colors.white70)),
+                                                  Text('${NumberFormat('#,##0', 'ko_KR').format(changeAmount)}원', style: const TextStyle(color: Color(0xFF2ECC71), fontSize: 22, fontWeight: FontWeight.bold)),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                          actions: [
+                                            ElevatedButton(
+                                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF007A87)),
+                                              onPressed: () => Navigator.pop(context),
+                                              child: const Text('확인', style: TextStyle(color: Colors.white)),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+                                  }
+                                : null,
+                            child: Text(
+                              isPayable ? '결제 완료' : '금액 부족',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCashAddButton(String label, VoidCallback onPressed) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF2C2E3E),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: const BorderSide(color: Colors.white24),
+        ),
+      ),
+      onPressed: onPressed,
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Future<void> _processTablePayment(
+    _TablePaymentSummary summary,
+    String method, {
+    int? receivedAmount,
+    int? changeAmount,
+  }) async {
+    final String paymentId = DateTime.now().millisecondsSinceEpoch.toString();
+    final Timestamp now = Timestamp.now();
+    for (final ref in summary.orderReferences) {
+      final Map<String, dynamic> updateData = {
+        'paid': true,
+        'completed': true,
+        'paymentId': paymentId,
+        'paidTime': now,
+        'paymentMethod': method,
+      };
+      if (receivedAmount != null) updateData['receivedAmount'] = receivedAmount;
+      if (changeAmount != null) updateData['changeAmount'] = changeAmount;
+      await ref.update(updateData);
     }
   }
 }
@@ -766,5 +1792,41 @@ class _OwnerCardData {
     required this.time,
     this.items,
     required this.reference,
+  });
+}
+
+class _TablePaymentSummary {
+  final String tableNumber;
+  final Map<String, _AggregatedItem> items = {};
+  final List<DocumentReference> orderReferences = [];
+  int totalAmount = 0;
+
+  _TablePaymentSummary(this.tableNumber);
+}
+
+class _PaidTransactionSummary {
+  final String paymentId;
+  final String tableNumber;
+  final DateTime paidTime;
+  final Map<String, _AggregatedItem> items = {};
+  final List<DocumentReference> orderReferences = [];
+  int totalAmount = 0;
+
+  _PaidTransactionSummary({
+    required this.paymentId,
+    required this.tableNumber,
+    required this.paidTime,
+  });
+}
+
+class _AggregatedItem {
+  final String name;
+  int quantity;
+  int unitPrice;
+
+  _AggregatedItem({
+    required this.name,
+    required this.quantity,
+    required this.unitPrice,
   });
 }

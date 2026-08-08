@@ -390,6 +390,93 @@ class _KioskHomePageState extends State<KioskHomePage> {
     );
   }
 
+  Future<void> _showChangeTableNumberDialog() async {
+    final currentNumStr = _tableNumber.replaceAll(RegExp(r'[^0-9]'), '');
+    final int currentNum = int.tryParse(currentNumStr) ?? 2;
+
+    final newTable = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E202C),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            '테이블 번호 선택',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '이 기기에서 사용할 테이블 번호를 선택해주세요.',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 260,
+                  child: GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 5,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 1.3,
+                    ),
+                    itemCount: 25,
+                    itemBuilder: (context, index) {
+                      final num = index + 1;
+                      final isSelected = (num == currentNum);
+                      return ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isSelected ? const Color(0xFF007A87) : const Color(0xFF2C2E3E),
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: BorderSide(
+                              color: isSelected ? Colors.white : Colors.transparent,
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(context, '$num');
+                        },
+                        child: Text(
+                          '$num번',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              child: const Text('취소', style: TextStyle(color: Colors.white54)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (newTable != null && newTable.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('tableNumber', newTable);
+      setState(() {
+        _tableNumber = newTable;
+      });
+    }
+  }
+
   Widget _buildWelcomeScreen(BuildContext context) {
     return Scaffold(
       body: Row(
@@ -846,18 +933,21 @@ class _KioskHomePageState extends State<KioskHomePage> {
             ),
           ),
           const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2C2E3E),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              _tableNumber.isEmpty ? '2번 테이블' : (_tableNumber.contains('테이블') ? _tableNumber : '$_tableNumber번 테이블'),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
+          GestureDetector(
+            onLongPress: _showChangeTableNumberDialog,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2C2E3E),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                _tableNumber.isEmpty ? '2번 테이블' : (_tableNumber.contains('테이블') ? _tableNumber : '$_tableNumber번 테이블'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),

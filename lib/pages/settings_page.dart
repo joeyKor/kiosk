@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:kiosk/widgets/change_pin_dialog.dart';
+import 'package:kiosk/widgets/pin_dialog.dart';
 import 'package:kiosk/pages/owner_mode_page.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -496,6 +497,14 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<bool> _verifyRestaurantPassword(String restaurantName, String actionTitle) async {
+    return await StorePinDialog.show(
+      context,
+      restaurantName: restaurantName,
+      actionTitle: actionTitle,
+    );
+  }
+
   void _showRestaurantSelectDialog() {
     showDialog(
       context: context,
@@ -580,13 +589,20 @@ class _SettingsPageState extends State<SettingsPage> {
                                     : IconButton(
                                         icon: const Icon(Icons.delete, color: Colors.redAccent),
                                         onPressed: () async {
-                                          await _deleteRestaurant(name);
-                                          setDialogState(() {});
+                                          final verified = await _verifyRestaurantPassword(name, '삭제');
+                                          if (verified) {
+                                            await _deleteRestaurant(name);
+                                            setDialogState(() {});
+                                          }
                                         },
                                       ),
                                 onTap: () async {
-                                  await _loadSelectedRestaurantData(name);
-                                  setDialogState(() {});
+                                  if (name == _restaurantName) return;
+                                  final verified = await _verifyRestaurantPassword(name, '변경');
+                                  if (verified) {
+                                    await _loadSelectedRestaurantData(name);
+                                    setDialogState(() {});
+                                  }
                                 },
                               );
                             },
@@ -743,23 +759,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  TextField(
-                                    controller: _tableNumberController,
-                                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(
-                                      labelText: '테이블 번호',
-                                      labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
-                                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF2C2E3E))),
-                                      focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF007A87))),
-                                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    ),
-                                    onChanged: (value) {
-                                      setState(() => _tableNumber = value);
-                                      _saveSettings();
-                                    },
                                   ),
                                 ],
                               ),
