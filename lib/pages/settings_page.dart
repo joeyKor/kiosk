@@ -425,36 +425,74 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _addNewRestaurantDialog() async {
-    final controller = TextEditingController();
+    final nameController = TextEditingController();
+    final pinController = TextEditingController();
+
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E202C),
-        title: const Text('새 매장 추가', style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            labelText: '매장 이름',
-            labelStyle: TextStyle(color: Colors.grey),
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF007A87))),
-          ),
+        title: const Text('새 매장 추가', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: '매장 이름',
+                labelStyle: TextStyle(color: Colors.grey),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF007A87))),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: pinController,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                counterText: '',
+                labelText: '매장 PIN 번호 (숫자 4자리)',
+                labelStyle: TextStyle(color: Colors.grey),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF007A87))),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소', style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                final name = controller.text;
-                await FirebaseFirestore.instance.collection('restaurants').doc(name).set({
-                  'categories': [],
-                });
-                Navigator.pop(context);
-                await _loadSelectedRestaurantData(name);
+              final name = nameController.text.trim().replaceAll('/', '_').replaceAll('.', '_');
+              final pin = pinController.text.trim();
+
+              if (name.isEmpty) return;
+              if (pin.length != 4) {
+                showCustomDialog(
+                  context: context,
+                  title: '입력 오류',
+                  content: '매장 PIN 번호는 숫자 4자리로 설정해주세요.',
+                );
+                return;
               }
+
+              await FirebaseFirestore.instance.collection('restaurants').doc(name).set({
+                'categories': ['김밥류', '분식류', '음료/기타'],
+                'password': pin,
+                'pin': pin,
+                'pinNumber': pin,
+                'pinCode': pin,
+                'createdAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+
+              Navigator.pop(context);
+              await _loadSelectedRestaurantData(name);
             },
-            child: const Text('추가', style: TextStyle(color: Color(0xFF007A87))),
+            child: const Text('추가', style: TextStyle(color: Color(0xFF007A87), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
