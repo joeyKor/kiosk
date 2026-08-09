@@ -10,6 +10,7 @@ class MenuItem {
   bool isBest;
   bool isNew;
   int order;
+  bool isSoldOut;
 
   MenuItem({
     required this.name,
@@ -20,6 +21,7 @@ class MenuItem {
     this.isBest = false,
     this.isNew = false,
     this.order = 0,
+    this.isSoldOut = false,
   });
 
   factory MenuItem.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,7 @@ class MenuItem {
       isBest: json['isBest'] ?? false,
       isNew: json['isNew'] ?? false,
       order: json['order'] ?? 0,
+      isSoldOut: json['isSoldOut'] ?? false,
     );
   }
 
@@ -45,6 +48,7 @@ class MenuItem {
       'isBest': isBest,
       'isNew': isNew,
       'order': order,
+      'isSoldOut': isSoldOut,
     };
   }
 }

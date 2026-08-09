@@ -252,6 +252,18 @@ class _OwnerModePageState extends State<OwnerModePage>
                         isLast: true,
                       ),
                     ]),
+                    const SizedBox(width: 12),
+                    // Tab Buttons Group 3: 품절관리
+                    _buildSegmentedGroup([
+                      _buildSegmentedButton(
+                        label: '품절관리',
+                        isActive: _activeTab == 'soldout',
+                        onTap: () => setState(() => _activeTab = 'soldout'),
+                        activeColor: const Color(0xFFE55A44),
+                        isFirst: true,
+                        isLast: true,
+                      ),
+                    ]),
                     const SizedBox(width: 16),
                     // Sound Toggle Button (Yellow/Gold)
                     GestureDetector(
@@ -464,7 +476,178 @@ class _OwnerModePageState extends State<OwnerModePage>
     );
   }
 
+  Widget _buildSoldOutManagementView() {
+    final categories = widget.categories;
+    final menuItems = widget.menuItems;
+
+    if (categories.isEmpty) {
+      return const Center(
+        child: Text(
+          '등록된 카테고리가 없습니다.',
+          style: TextStyle(color: Colors.grey, fontSize: 18),
+        ),
+      );
+    }
+
+    return DefaultTabController(
+      length: categories.length,
+      child: Column(
+        children: [
+          Container(
+            color: const Color(0xFF1E202C),
+            child: TabBar(
+              isScrollable: true,
+              indicatorColor: const Color(0xFFE55A44),
+              labelColor: const Color(0xFFE55A44),
+              unselectedLabelColor: Colors.white70,
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              tabs: categories.map((cat) => Tab(text: cat)).toList(),
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: categories.map((cat) {
+                final items = menuItems[cat] ?? [];
+                if (items.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      '이 카테고리에 등록된 메뉴가 없습니다.',
+                      style: TextStyle(color: Colors.grey, fontSize: 16),
+                    ),
+                  );
+                }
+
+                return GridView.builder(
+                  padding: const EdgeInsets.all(20),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.85,
+                  ),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return Card(
+                      color: const Color(0xFF1E202C),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(
+                          color: item.isSoldOut ? const Color(0xFFE55A44) : Colors.transparent,
+                          width: 1.5,
+                        ),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: Opacity(
+                                    opacity: item.isSoldOut ? 0.4 : 1.0,
+                                    child: Container(
+                                      color: Colors.black26,
+                                      child: item.image != null && item.image!.startsWith('assets/')
+                                          ? Image.asset(item.image!, fit: BoxFit.cover)
+                                          : (item.image != null
+                                              ? Image.network(item.image!, fit: BoxFit.cover)
+                                              : const Icon(Icons.restaurant, color: Colors.white)),
+                                    ),
+                                  ),
+                                ),
+                                if (item.isSoldOut)
+                                  Center(
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      color: Colors.black54,
+                                      child: Text(
+                                        '품절',
+                                        style: TextStyle(
+                                          color: Color(0xFFE55A44),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            flex: 4,
+                            child: Padding(
+                              padding: const EdgeInsets.all(10.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    item.name,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        item.isSoldOut ? '품절 상태' : '판매 중',
+                                        style: TextStyle(
+                                          color: item.isSoldOut ? const Color(0xFFE55A44) : const Color(0xFF2CA05A),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Switch(
+                                        value: item.isSoldOut,
+                                        activeColor: const Color(0xFFE55A44),
+                                        onChanged: (value) async {
+                                          setState(() {
+                                            item.isSoldOut = value;
+                                          });
+
+                                          try {
+                                            final docRef = FirebaseFirestore.instance
+                                                .collection('restaurants')
+                                                .doc(_restaurantNameState)
+                                                .collection('menuItems')
+                                                .doc(item.name);
+                                            await docRef.update({'isSoldOut': value});
+                                          } catch (e) {
+                                            print("Error updating soldout status in Firestore: $e");
+                                          }
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBody(Timestamp startOfToday, Timestamp endOfToday) {
+    if (_activeTab == 'soldout') {
+      return _buildSoldOutManagementView();
+    }
     if (_activeTab == 'order') {
       return StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
