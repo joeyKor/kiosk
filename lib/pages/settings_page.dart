@@ -98,6 +98,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _addCategory() {
+    if (_restaurantName == '조이김밥') {
+      showCustomDialog(
+        context: context,
+        title: '변경 불가',
+        content: '기본 설정 매장 [조이김밥]의 카테고리는 추가할 수 없습니다.',
+      );
+      return;
+    }
     final TextEditingController controller = TextEditingController();
     showDialog(
       context: context,
@@ -135,6 +143,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _renameCategory(int index) {
+    if (_restaurantName == '조이김밥') {
+      showCustomDialog(
+        context: context,
+        title: '변경 불가',
+        content: '기본 설정 매장 [조이김밥]의 카테고리는 수정할 수 없습니다.',
+      );
+      return;
+    }
     final TextEditingController controller = TextEditingController(
       text: _categories[index],
     );
@@ -183,6 +199,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _deleteCategory(int index) {
+    if (_restaurantName == '조이김밥') {
+      showCustomDialog(
+        context: context,
+        title: '변경 불가',
+        content: '기본 설정 매장 [조이김밥]의 카테고리는 삭제할 수 없습니다.',
+      );
+      return;
+    }
     if (_restaurantName.isEmpty) {
       showCustomDialog(
         context: context,
@@ -203,6 +227,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _showMenuFormDialog(String categoryName, {MenuItem? item, int? index}) {
+    if (_restaurantName == '조이김밥') {
+      showCustomDialog(
+        context: context,
+        title: '변경 불가',
+        content: '기본 설정 매장 [조이김밥]의 메뉴는 수정할 수 없습니다.',
+      );
+      return;
+    }
     final isEditing = item != null;
     final nameController = TextEditingController(
       text: isEditing ? item.name : '',
