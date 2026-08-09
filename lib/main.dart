@@ -186,11 +186,15 @@ class _KioskHomePageState extends State<KioskHomePage> {
     }
 
     try {
-      final data = await FirebaseService.instance.loadCategoriesAndMenu(_restaurantName);
+      final data = await FirebaseService.instance.loadCategoriesAndMenu(
+        _restaurantName,
+      );
       if (mounted) {
         setState(() {
           _categories = List<String>.from(data['categories'] ?? []);
-          _menuItems = Map<String, List<MenuItem>>.from(data['menuItems'] ?? {});
+          _menuItems = Map<String, List<MenuItem>>.from(
+            data['menuItems'] ?? {},
+          );
           _isLoading = false;
         });
       }
@@ -240,10 +244,12 @@ class _KioskHomePageState extends State<KioskHomePage> {
   }
 
   void _updateCategoriesAndMenus(
+    String newRestaurantName,
     List<String> newCategories,
     Map<String, List<MenuItem>> newMenuItems,
   ) {
     setState(() {
+      _restaurantName = newRestaurantName;
       _categories = newCategories;
       _menuItems = newMenuItems;
     });
@@ -286,7 +292,8 @@ class _KioskHomePageState extends State<KioskHomePage> {
             builder: (context) => OrderCompletedPage(
               tableNumber: _tableNumber,
               orderedItems: orderedItems,
-              imageFolderPath: _imageFolderPath != null && _imageFolderPath!.isNotEmpty
+              imageFolderPath:
+                  _imageFolderPath != null && _imageFolderPath!.isNotEmpty
                   ? '$_imageFolderPath/$_restaurantName'
                   : null,
             ),
@@ -384,7 +391,9 @@ class _KioskHomePageState extends State<KioskHomePage> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF1E202C),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Text(
             '테이블 번호 선택',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -403,25 +412,30 @@ class _KioskHomePageState extends State<KioskHomePage> {
                 SizedBox(
                   height: 260,
                   child: GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 5,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
-                      childAspectRatio: 1.3,
-                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 5,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: 1.3,
+                        ),
                     itemCount: 25,
                     itemBuilder: (context, index) {
                       final num = index + 1;
                       final isSelected = (num == currentNum);
                       return ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: isSelected ? const Color(0xFF007A87) : const Color(0xFF2C2E3E),
+                          backgroundColor: isSelected
+                              ? const Color(0xFF007A87)
+                              : const Color(0xFF2C2E3E),
                           foregroundColor: Colors.white,
                           padding: EdgeInsets.zero,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                             side: BorderSide(
-                              color: isSelected ? Colors.white : Colors.transparent,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.transparent,
                               width: 1.5,
                             ),
                           ),
@@ -433,7 +447,9 @@ class _KioskHomePageState extends State<KioskHomePage> {
                           '$num번',
                           style: TextStyle(
                             fontSize: 15,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                           ),
                         ),
                       );
@@ -482,7 +498,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        LocalizationService.instance.translate('welcome_subtitle', _langCode),
+                        LocalizationService.instance.translate(
+                          'welcome_subtitle',
+                          _langCode,
+                        ),
                         style: TextStyle(
                           fontSize: 36,
                           fontStyle: FontStyle.italic,
@@ -493,7 +512,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
                       ),
                       const SizedBox(height: 30),
                       Text(
-                        LocalizationService.instance.translate('welcome_touch', _langCode),
+                        LocalizationService.instance.translate(
+                          'welcome_touch',
+                          _langCode,
+                        ),
                         style: const TextStyle(
                           fontSize: 80,
                           fontWeight: FontWeight.w900,
@@ -501,7 +523,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
                         ),
                       ),
                       Text(
-                        LocalizationService.instance.translate('welcome_order', _langCode),
+                        LocalizationService.instance.translate(
+                          'welcome_order',
+                          _langCode,
+                        ),
                         style: const TextStyle(
                           fontSize: 80,
                           fontWeight: FontWeight.w900,
@@ -548,28 +573,40 @@ class _KioskHomePageState extends State<KioskHomePage> {
                 // Step 1
                 _buildSidebarStep(
                   icon: Icons.touch_app,
-                  label: LocalizationService.instance.translate('step_touch', _langCode),
+                  label: LocalizationService.instance.translate(
+                    'step_touch',
+                    _langCode,
+                  ),
                   isActive: true,
                 ),
                 _buildStepConnector(),
                 // Step 2
                 _buildSidebarStep(
                   icon: Icons.restaurant_menu,
-                  label: LocalizationService.instance.translate('step_select', _langCode),
+                  label: LocalizationService.instance.translate(
+                    'step_select',
+                    _langCode,
+                  ),
                   isActive: false,
                 ),
                 _buildStepConnector(),
                 // Step 3
                 _buildSidebarStep(
                   icon: Icons.credit_card,
-                  label: LocalizationService.instance.translate('step_payment', _langCode),
+                  label: LocalizationService.instance.translate(
+                    'step_payment',
+                    _langCode,
+                  ),
                   isActive: false,
                 ),
                 _buildStepConnector(),
                 // Step 4
                 _buildSidebarStep(
                   icon: Icons.check_circle_outline,
-                  label: LocalizationService.instance.translate('step_complete', _langCode),
+                  label: LocalizationService.instance.translate(
+                    'step_complete',
+                    _langCode,
+                  ),
                   isActive: false,
                 ),
                 const Spacer(),
@@ -589,7 +626,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            LocalizationService.instance.translate('lang_selection_title', _langCode),
+            LocalizationService.instance.translate(
+              'lang_selection_title',
+              _langCode,
+            ),
             style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.bold,
@@ -598,11 +638,11 @@ class _KioskHomePageState extends State<KioskHomePage> {
           ),
           const SizedBox(height: 8),
           Text(
-            LocalizationService.instance.translate('lang_selection_subtitle', _langCode),
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
+            LocalizationService.instance.translate(
+              'lang_selection_subtitle',
+              _langCode,
             ),
+            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
           ),
           const SizedBox(height: 40),
           Expanded(
@@ -676,10 +716,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                flagEmoji,
-                style: const TextStyle(fontSize: 80),
-              ),
+              Text(flagEmoji, style: const TextStyle(fontSize: 80)),
               const SizedBox(height: 20),
               Text(
                 languageName,
@@ -692,10 +729,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
               const SizedBox(height: 6),
               Text(
                 englishName,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[500],
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey[500]),
               ),
             ],
           ),
@@ -724,15 +758,11 @@ class _KioskHomePageState extends State<KioskHomePage> {
                       color: const Color(0xFFE55A44).withOpacity(0.4),
                       blurRadius: 10,
                       spreadRadius: 2,
-                    )
+                    ),
                   ]
                 : null,
           ),
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: 30,
-          ),
+          child: Icon(icon, color: Colors.white, size: 30),
         ),
         const SizedBox(height: 8),
         Text(
@@ -750,11 +780,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
   Widget _buildStepConnector() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Icon(
-        Icons.keyboard_arrow_down,
-        color: Colors.grey[600],
-        size: 20,
-      ),
+      child: Icon(Icons.keyboard_arrow_down, color: Colors.grey[600], size: 20),
     );
   }
 
@@ -786,18 +812,29 @@ class _KioskHomePageState extends State<KioskHomePage> {
                         showCustomDialog(
                           context: context,
                           title: _langCode == 'ko' ? '알림' : 'Notice',
-                          content: _langCode == 'ko' ? '장바구니가 비워졌습니다.' : 'The cart has been cleared.',
+                          content: _langCode == 'ko'
+                              ? '장바구니가 비워졌습니다.'
+                              : 'The cart has been cleared.',
                         );
                       },
                       style: TextButton.styleFrom(
-                        side: const BorderSide(color: Colors.white70, width: 1.5),
+                        side: const BorderSide(
+                          color: Colors.white70,
+                          width: 1.5,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                       ),
                       child: Text(
-                        LocalizationService.instance.translate('cart_clear', _langCode),
+                        LocalizationService.instance.translate(
+                          'cart_clear',
+                          _langCode,
+                        ),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -807,7 +844,11 @@ class _KioskHomePageState extends State<KioskHomePage> {
                     ),
                   const SizedBox(width: 16),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                     onPressed: () {
                       setState(() {
                         _showCart = false;
@@ -822,17 +863,28 @@ class _KioskHomePageState extends State<KioskHomePage> {
               child: cart.items.isEmpty
                   ? Center(
                       child: Text(
-                        LocalizationService.instance.translate('cart_empty', _langCode),
-                        style: const TextStyle(fontSize: 18, color: Colors.grey),
+                        LocalizationService.instance.translate(
+                          'cart_empty',
+                          _langCode,
+                        ),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey,
+                        ),
                       ),
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.all(20),
                       itemCount: cart.items.length,
-                      separatorBuilder: (context, index) => const Divider(height: 30, thickness: 1),
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 30, thickness: 1),
                       itemBuilder: (context, index) {
                         final cartItem = cart.items[index];
-                        final translatedName = LocalizationService.instance.translateMenuItemName(cartItem.item.name, _langCode);
+                        final translatedName = LocalizationService.instance
+                            .translateMenuItemName(
+                              cartItem.item.name,
+                              _langCode,
+                            );
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -852,7 +904,11 @@ class _KioskHomePageState extends State<KioskHomePage> {
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.close, color: Colors.grey, size: 24),
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: Colors.grey,
+                                    size: 24,
+                                  ),
                                   onPressed: () {
                                     cart.removeItem(cartItem);
                                   },
@@ -872,14 +928,22 @@ class _KioskHomePageState extends State<KioskHomePage> {
                                       child: Container(
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          border: Border.all(color: Colors.grey[400]!),
+                                          border: Border.all(
+                                            color: Colors.grey[400]!,
+                                          ),
                                         ),
                                         padding: const EdgeInsets.all(6),
-                                        child: const Icon(Icons.remove, size: 20, color: Colors.grey),
+                                        child: const Icon(
+                                          Icons.remove,
+                                          size: 20,
+                                          color: Colors.grey,
+                                        ),
                                       ),
                                     ),
                                     Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
                                       child: Text(
                                         '${cartItem.quantity}',
                                         style: const TextStyle(
@@ -895,10 +959,16 @@ class _KioskHomePageState extends State<KioskHomePage> {
                                       child: Container(
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          border: Border.all(color: Colors.grey[400]!),
+                                          border: Border.all(
+                                            color: Colors.grey[400]!,
+                                          ),
                                         ),
                                         padding: const EdgeInsets.all(6),
-                                        child: const Icon(Icons.add, size: 20, color: Colors.grey),
+                                        child: const Icon(
+                                          Icons.add,
+                                          size: 20,
+                                          color: Colors.grey,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -929,8 +999,15 @@ class _KioskHomePageState extends State<KioskHomePage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        LocalizationService.instance.translate('total_price', _langCode),
-                        style: const TextStyle(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.bold),
+                        LocalizationService.instance.translate(
+                          'total_price',
+                          _langCode,
+                        ),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Text(
                         '${currencyFormat.format(cart.totalPrice)}원',
@@ -957,7 +1034,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
                           showCustomDialog(
                             context: context,
                             title: _langCode == 'ko' ? '알림' : 'Notice',
-                            content: LocalizationService.instance.translate('setup_required', _langCode),
+                            content: LocalizationService.instance.translate(
+                              'setup_required',
+                              _langCode,
+                            ),
                           );
                           return;
                         }
@@ -972,8 +1052,14 @@ class _KioskHomePageState extends State<KioskHomePage> {
                   elevation: 0,
                 ),
                 child: Text(
-                  LocalizationService.instance.translate('order_btn', _langCode),
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  LocalizationService.instance.translate(
+                    'order_btn',
+                    _langCode,
+                  ),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -1053,9 +1139,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
               child: Text(
                 _tableNumber.isEmpty
                     ? '2${LocalizationService.instance.translate('table_unit', _langCode)} ${LocalizationService.instance.translate('table_label', _langCode)}'
-                    : (_tableNumber.contains('테이블') || _tableNumber.contains('Table')
-                        ? _tableNumber
-                        : '$_tableNumber${LocalizationService.instance.translate('table_unit', _langCode)} ${LocalizationService.instance.translate('table_label', _langCode)}'),
+                    : (_tableNumber.contains('테이블') ||
+                              _tableNumber.contains('Table')
+                          ? _tableNumber
+                          : '$_tableNumber${LocalizationService.instance.translate('table_unit', _langCode)} ${LocalizationService.instance.translate('table_label', _langCode)}'),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 11,
@@ -1069,7 +1156,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
           // 1. 메뉴주문 (Active)
           _buildSidebarNavItem(
             icon: Icons.restaurant_menu,
-            label: LocalizationService.instance.translate('sidebar_order', _langCode),
+            label: LocalizationService.instance.translate(
+              'sidebar_order',
+              _langCode,
+            ),
             isActive: _activeSidebarTab == 'menu',
             onTap: () {
               setState(() {
@@ -1081,7 +1171,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
           // 2. FUN (Inactive)
           _buildSidebarNavItem(
             icon: Icons.sentiment_satisfied_alt_outlined,
-            label: LocalizationService.instance.translate('sidebar_fun', _langCode),
+            label: LocalizationService.instance.translate(
+              'sidebar_fun',
+              _langCode,
+            ),
             isActive: _activeSidebarTab == 'fun',
             onTap: () {
               setState(() {
@@ -1093,7 +1186,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
           // 3. LANG (Inactive)
           _buildSidebarNavItem(
             icon: Icons.language,
-            label: LocalizationService.instance.translate('sidebar_lang', _langCode),
+            label: LocalizationService.instance.translate(
+              'sidebar_lang',
+              _langCode,
+            ),
             isActive: _activeSidebarTab == 'lang',
             onTap: () {
               setState(() {
@@ -1107,17 +1203,29 @@ class _KioskHomePageState extends State<KioskHomePage> {
             onTap: () async {
               if (_restaurantName.isNotEmpty && _tableNumber.isNotEmpty) {
                 try {
-                  await FirebaseService.instance.callStaff(_restaurantName, _tableNumber);
+                  await FirebaseService.instance.callStaff(
+                    _restaurantName,
+                    _tableNumber,
+                  );
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Row(
                           children: [
-                            const Icon(Icons.notifications_active, color: Colors.white),
+                            const Icon(
+                              Icons.notifications_active,
+                              color: Colors.white,
+                            ),
                             const SizedBox(width: 12),
                             Text(
-                              LocalizationService.instance.translate('call_success', _langCode),
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              LocalizationService.instance.translate(
+                                'call_success',
+                                _langCode,
+                              ),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
@@ -1136,7 +1244,8 @@ class _KioskHomePageState extends State<KioskHomePage> {
                     showCustomDialog(
                       context: context,
                       title: _langCode == 'ko' ? '오류' : 'Error',
-                      content: '${LocalizationService.instance.translate('call_error', _langCode)} $e',
+                      content:
+                          '${LocalizationService.instance.translate('call_error', _langCode)} $e',
                     );
                   }
                 }
@@ -1144,7 +1253,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
                 showCustomDialog(
                   context: context,
                   title: _langCode == 'ko' ? '알림' : 'Notice',
-                  content: LocalizationService.instance.translate('setup_required', _langCode),
+                  content: LocalizationService.instance.translate(
+                    'setup_required',
+                    _langCode,
+                  ),
                 );
               }
             },
@@ -1158,7 +1270,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
               ),
               alignment: Alignment.center,
               child: Text(
-                LocalizationService.instance.translate('sidebar_call', _langCode),
+                LocalizationService.instance.translate(
+                  'sidebar_call',
+                  _langCode,
+                ),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white,
@@ -1200,11 +1315,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: isActive ? Colors.white : Colors.grey,
-              size: 24,
-            ),
+            Icon(icon, color: isActive ? Colors.white : Colors.grey, size: 24),
             const SizedBox(height: 6),
             Text(
               label,
@@ -1241,19 +1352,35 @@ class _KioskHomePageState extends State<KioskHomePage> {
               isScrollable: true,
               labelColor: const Color(0xFF007A87),
               unselectedLabelColor: Colors.grey[600],
-              labelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              unselectedLabelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
+              labelStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.normal,
+              ),
               indicatorColor: const Color(0xFF007A87),
               indicatorWeight: 3.0,
               indicatorSize: TabBarIndicatorSize.label,
-              tabs: _categories.map((String name) => Tab(text: LocalizationService.instance.translateCategory(name, _langCode))).toList(),
+              tabs: _categories
+                  .map(
+                    (String name) => Tab(
+                      text: LocalizationService.instance.translateCategory(
+                        name,
+                        _langCode,
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
           ),
           // Right Scroll Arrow
           IconButton(
             icon: const Icon(Icons.chevron_right, color: Colors.grey),
             onPressed: () {
-              if (tabController != null && tabController.index < _categories.length - 1) {
+              if (tabController != null &&
+                  tabController.index < _categories.length - 1) {
                 tabController.animateTo(tabController.index + 1);
               }
             },
@@ -1285,10 +1412,21 @@ class _KioskHomePageState extends State<KioskHomePage> {
                     );
                   }
                 : null,
-            icon: const Icon(Icons.assignment_outlined, size: 20, color: Colors.grey),
+            icon: const Icon(
+              Icons.assignment_outlined,
+              size: 20,
+              color: Colors.grey,
+            ),
             label: Text(
-              LocalizationService.instance.translate('order_history', _langCode),
-              style: const TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold),
+              LocalizationService.instance.translate(
+                'order_history',
+                _langCode,
+              ),
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
@@ -1317,7 +1455,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
                   backgroundColor: const Color(0xFF007A87),
                   elevation: 4,
                   shadowColor: Colors.black26,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(4),
                   ),
@@ -1326,8 +1467,15 @@ class _KioskHomePageState extends State<KioskHomePage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      LocalizationService.instance.translate('order_btn', _langCode),
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      LocalizationService.instance.translate(
+                        'order_btn',
+                        _langCode,
+                      ),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Container(
@@ -1387,47 +1535,81 @@ class _KioskHomePageState extends State<KioskHomePage> {
                             child: _activeSidebarTab == 'fun'
                                 ? RouletteWidget(langCode: _langCode)
                                 : _activeSidebarTab == 'lang'
-                                    ? _buildLanguageSelectionScreen(context)
-                                    : Stack(
+                                ? _buildLanguageSelectionScreen(context)
+                                : Stack(
                                     children: [
                                       Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           // Top Category Tab Bar
                                           Builder(
-                                            builder: (tabContext) => _buildCategoryTabBar(tabContext),
+                                            builder: (tabContext) =>
+                                                _buildCategoryTabBar(
+                                                  tabContext,
+                                                ),
                                           ),
                                           // Section Title & Menu Grid
                                           Expanded(
                                             child: _categories.isEmpty
                                                 ? Center(
                                                     child: Text(
-                                                      LocalizationService.instance.translate('empty_menu', _langCode),
+                                                      LocalizationService
+                                                          .instance
+                                                          .translate(
+                                                            'empty_menu',
+                                                            _langCode,
+                                                          ),
                                                     ),
                                                   )
                                                 : TabBarView(
-                                                    children: _categories.map((String name) {
+                                                    children: _categories.map((
+                                                      String name,
+                                                    ) {
                                                       return Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
                                                         children: [
                                                           Padding(
-                                                            padding: const EdgeInsets.only(left: 20.0, top: 16.0, bottom: 8.0),
+                                                            padding:
+                                                                const EdgeInsets.only(
+                                                                  left: 20.0,
+                                                                  top: 16.0,
+                                                                  bottom: 8.0,
+                                                                ),
                                                             child: Text(
-                                                              LocalizationService.instance.translateCategory(name, _langCode),
+                                                              LocalizationService
+                                                                  .instance
+                                                                  .translateCategory(
+                                                                    name,
+                                                                    _langCode,
+                                                                  ),
                                                               style: const TextStyle(
                                                                 fontSize: 22,
-                                                                fontWeight: FontWeight.bold,
-                                                                color: Color(0xFF1E2022),
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                color: Color(
+                                                                  0xFF1E2022,
+                                                                ),
                                                               ),
                                                             ),
                                                           ),
                                                           Expanded(
                                                             child: MenuGrid(
-                                                              items: _menuItems[name] ?? [],
-                                                              imageFolderPath: _imageFolderPath != null && _imageFolderPath!.isNotEmpty
+                                                              items:
+                                                                  _menuItems[name] ??
+                                                                  [],
+                                                              imageFolderPath:
+                                                                  _imageFolderPath !=
+                                                                          null &&
+                                                                      _imageFolderPath!
+                                                                          .isNotEmpty
                                                                   ? '$_imageFolderPath/$_restaurantName'
                                                                   : null,
-                                                              langCode: _langCode,
+                                                              langCode:
+                                                                  _langCode,
                                                             ),
                                                           ),
                                                         ],
@@ -1438,7 +1620,8 @@ class _KioskHomePageState extends State<KioskHomePage> {
                                         ],
                                       ),
                                       // Floating Action Buttons
-                                      if (!_showCart) _buildFloatingActionBar(context),
+                                      if (!_showCart)
+                                        _buildFloatingActionBar(context),
                                     ],
                                   ),
                           ),
@@ -1462,12 +1645,16 @@ class _KioskHomePageState extends State<KioskHomePage> {
                             curve: Curves.easeInOut,
                             top: 0,
                             bottom: 0,
-                            right: _showCart ? 0 : -(MediaQuery.of(context).size.width * 0.45),
+                            right: _showCart
+                                ? 0
+                                : -(MediaQuery.of(context).size.width * 0.45),
                             width: MediaQuery.of(context).size.width * 0.45,
                             child: Container(
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                border: Border(left: BorderSide(color: Colors.grey[300]!)),
+                                border: Border(
+                                  left: BorderSide(color: Colors.grey[300]!),
+                                ),
                                 boxShadow: [
                                   BoxShadow(
                                     color: Colors.black.withOpacity(0.08),

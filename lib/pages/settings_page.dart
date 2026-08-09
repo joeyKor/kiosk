@@ -20,7 +20,7 @@ import 'package:intl/intl.dart';
 class SettingsPage extends StatefulWidget {
   final List<String> categories;
   final Map<String, List<MenuItem>> menuItems;
-  final Function(List<String>, Map<String, List<MenuItem>>) onUpdate;
+  final Function(String, List<String>, Map<String, List<MenuItem>>) onUpdate;
   final String? imageFolderPath;
 
   const SettingsPage({
@@ -130,7 +130,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     _menuItems[controller.text] = [];
                     _selectedCategory ??= controller.text;
                   });
-                  widget.onUpdate(_categories, _menuItems);
+                  widget.onUpdate(_restaurantName, _categories, _menuItems);
                   Navigator.pop(context);
                 }
               },
@@ -186,7 +186,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       _selectedCategory = newName;
                     }
                   });
-                  widget.onUpdate(_categories, _menuItems);
+                  widget.onUpdate(_restaurantName, _categories, _menuItems);
                   Navigator.pop(context);
                 }
               },
@@ -198,7 +198,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _deleteCategory(int index) {
+  Future<void> _deleteCategory(int index) async {
     if (_restaurantName == '조이김밥') {
       showCustomDialog(
         context: context,
@@ -216,6 +216,28 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
     final categoryName = _categories[index];
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E202C),
+        title: const Text('카테고리 삭제', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text('[$categoryName] 카테고리를 삭제하시겠습니까?\n카테고리 안의 모든 메뉴 데이터도 함께 영구 삭제되며 복구할 수 없습니다.', style: const TextStyle(color: Colors.grey)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
     setState(() {
       _categories.removeAt(index);
       _menuItems.remove(categoryName);
@@ -223,7 +245,7 @@ class _SettingsPageState extends State<SettingsPage> {
         _selectedCategory = _categories.isNotEmpty ? _categories.first : null;
       }
     });
-    widget.onUpdate(_categories, _menuItems);
+    widget.onUpdate(_restaurantName, _categories, _menuItems);
   }
 
   void _showMenuFormDialog(String categoryName, {MenuItem? item, int? index}) {
@@ -576,7 +598,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                   }
                                 });
 
-                                widget.onUpdate(_categories, _menuItems);
+                                widget.onUpdate(_restaurantName, _categories, _menuItems);
                                 Navigator.pop(context);
                               },
                               child: Text(isEditing ? '저장' : '추가', style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -599,7 +621,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _menuItems[categoryName]!.removeAt(index);
     });
-    widget.onUpdate(_categories, _menuItems);
+    widget.onUpdate(_restaurantName, _categories, _menuItems);
   }
 
   Future<void> _loadSelectedRestaurantData(String newRestaurantName) async {
@@ -650,7 +672,7 @@ class _SettingsPageState extends State<SettingsPage> {
         _selectedCategory = loadedCategories.isNotEmpty ? loadedCategories.first : null;
       });
       await _saveSettings();
-      widget.onUpdate(_categories, _menuItems);
+      widget.onUpdate(_restaurantName, _categories, _menuItems);
     } catch (e) {
       print("Error loading restaurant data: $e");
     }
@@ -769,7 +791,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _selectedCategory = null;
         });
         _saveSettings();
-        widget.onUpdate(_categories, _menuItems);
+        widget.onUpdate(_restaurantName, _categories, _menuItems);
       }
     }
   }
@@ -780,6 +802,90 @@ class _SettingsPageState extends State<SettingsPage> {
       restaurantName: restaurantName,
       actionTitle: actionTitle,
     );
+  }
+
+  Future<void> _clearStoreOrdersAndCalls() async {
+    if (_restaurantName.isEmpty) {
+      showCustomDialog(
+        context: context,
+        title: '알림',
+        content: '음식점 이름을 먼저 설정해주세요.',
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E202C),
+        title: const Text('기록 삭제', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text('[$_restaurantName] 매장의 모든 주문 내역과 직원 호출 기록을 영구히 삭제하시겠습니까?\n이 작업은 복구할 수 없습니다.', style: const TextStyle(color: Colors.grey)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Show progress dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF007A87)),
+      ),
+    );
+
+    try {
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
+
+      // 1. Fetch and delete orders
+      final ordersSnapshot = await db
+          .collection('orders')
+          .where('restaurantName', isEqualTo: _restaurantName)
+          .get();
+      for (final doc in ordersSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+
+      // 2. Fetch and delete calls
+      final callsSnapshot = await db
+          .collection('calls')
+          .where('restaurantName', isEqualTo: _restaurantName)
+          .get();
+      for (final doc in callsSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+
+      await batch.commit();
+
+      if (mounted) {
+        Navigator.pop(context); // Pop the progress indicator
+        showCustomDialog(
+          context: context,
+          title: '삭제 완료',
+          content: '[$_restaurantName] 매장의 모든 주문 및 호출 기록이 삭제되었습니다.',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Pop the progress indicator
+        showCustomDialog(
+          context: context,
+          title: '오류',
+          content: '기록을 삭제하는 동안 오류가 발생했습니다: $e',
+        );
+      }
+    }
   }
 
   void _showRestaurantSelectDialog() {
@@ -937,7 +1043,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     onTap: () async {
                       _tableNumber = _tableNumberController.text.trim();
                       await _saveSettings();
-                      widget.onUpdate(_categories, _menuItems);
+                      widget.onUpdate(_restaurantName, _categories, _menuItems);
                       Navigator.of(context).pop();
                     },
                     child: Container(
@@ -1078,6 +1184,22 @@ class _SettingsPageState extends State<SettingsPage> {
                                     ),
                                   ),
                                 ),
+                                const SizedBox(height: 16),
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFC0222B),
+                                    minimumSize: const Size(double.infinity, 44),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: _clearStoreOrdersAndCalls,
+                                  icon: const Icon(Icons.delete_sweep, color: Colors.white, size: 18),
+                                  label: const Text(
+                                    '매장 주문/호출 내역 삭제',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -1165,7 +1287,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                                 final String item = _categories.removeAt(oldIndex);
                                                 _categories.insert(newIndex, item);
                                               });
-                                              widget.onUpdate(_categories, _menuItems);
+                                              widget.onUpdate(_restaurantName, _categories, _menuItems);
                                             },
                                             itemBuilder: (context, index) {
                                               final category = _categories[index];

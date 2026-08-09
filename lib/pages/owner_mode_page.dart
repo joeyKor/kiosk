@@ -16,7 +16,7 @@ class OwnerModePage extends StatefulWidget {
   final List<String> categories;
   final Map<String, List<MenuItem>> menuItems;
   final String? imageFolderPath;
-  final Function(List<String>, Map<String, List<MenuItem>>) onUpdate;
+  final Function(String, List<String>, Map<String, List<MenuItem>>) onUpdate;
 
   const OwnerModePage({
     super.key,
