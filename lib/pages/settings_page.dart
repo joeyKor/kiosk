@@ -271,6 +271,7 @@ class _SettingsPageState extends State<SettingsPage> {
     bool isBest = isEditing ? item.isBest : false;
     bool isNew = isEditing ? item.isNew : false;
     String? imageFilename = isEditing ? item.image : null;
+    Uint8List? localCroppedBytes;
 
     showDialog(
       context: context,
@@ -439,11 +440,16 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: ImageDisplay(
-                              imagePath: imageFilename,
-                              imageFolderPath: _currentStoreImageFolderPath,
-                              itemName: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
-                            ),
+                            child: localCroppedBytes != null
+                                ? Image.memory(
+                                    localCroppedBytes!,
+                                    fit: BoxFit.cover,
+                                  )
+                                : ImageDisplay(
+                                    imagePath: imageFilename,
+                                    imageFolderPath: _currentStoreImageFolderPath,
+                                    itemName: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
+                                  ),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -529,6 +535,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                                       setStateDialog(() {
                                         imageFilename = fileName;
+                                        localCroppedBytes = croppedBytes;
                                       });
                                     }
                                   }
