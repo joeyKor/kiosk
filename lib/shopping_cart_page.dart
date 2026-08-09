@@ -7,6 +7,7 @@ import 'package:kiosk/widgets/image_display.dart';
 import 'package:kiosk/widgets/custom_dialog.dart';
 import 'package:kiosk/util/decrypt.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:kiosk/widgets/receipt_dialog.dart';
 
 class ShoppingCartPage extends StatefulWidget {
   final String restaurantName;
@@ -30,6 +31,13 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
     if (cart.items.isEmpty) {
       return;
     }
+
+    final int totalPrice = cart.totalPrice;
+    final List<Map<String, dynamic>> receiptItems = cart.items.map((cartItem) => {
+      'name': cartItem.item.name,
+      'quantity': cartItem.quantity,
+      'price': cartItem.item.price,
+    }).toList();
 
     final orderData = {
       'orderTime': Timestamp.now(),
@@ -55,13 +63,28 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
       cart.clearCart();
 
       if (mounted) {
-        showCustomDialog(
-          context: context,
-          title: '주문 완료',
-          content: '주문이 성공적으로 완료되었습니다!',
-        ).then(
-          (_) => Navigator.of(context).popUntil((route) => route.isFirst),
-        ); // Navigate to main screen
+        if (paymentMethod == '현금결제') {
+          await ReceiptDialog.show(
+            context: context,
+            restaurantName: widget.restaurantName,
+            tableNumber: widget.tableNumber,
+            totalPrice: totalPrice,
+            balanceAfter: 0,
+            items: receiptItems,
+            paymentMethod: '현금',
+          );
+          if (mounted) {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
+        } else {
+          showCustomDialog(
+            context: context,
+            title: '주문 완료',
+            content: '주문이 성공적으로 완료되었습니다!',
+          ).then(
+            (_) => Navigator.of(context).popUntil((route) => route.isFirst),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -140,6 +163,7 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
           totalPrice: cart.totalPrice,
           onSubmit: (paymentMethod) => _submitOrder(paymentMethod),
           restaurantName: widget.restaurantName,
+          tableNumber: widget.tableNumber,
         );
       },
     );
@@ -312,11 +336,13 @@ class PayPaymentDialog extends StatefulWidget {
   final int totalPrice;
   final Future<void> Function(String paymentMethod) onSubmit;
   final String restaurantName;
+  final String tableNumber;
 
   const PayPaymentDialog({
     required this.totalPrice,
     required this.onSubmit,
     required this.restaurantName,
+    required this.tableNumber,
   });
 
   @override
@@ -381,6 +407,8 @@ class PayPaymentDialogState extends State<PayPaymentDialog> {
 
     await Future.delayed(const Duration(seconds: 2));
 
+    DocumentReference? targetAccountRef;
+    final amountToWithdraw = widget.totalPrice;
     try {
       String rawInput = _accountController.text.trim();
       for (final korPrefix in ["ㅔ묘", "ㅖ묘", "ㅔ됴", "ㅖ됴"]) {
@@ -395,21 +423,33 @@ class PayPaymentDialogState extends State<PayPaymentDialog> {
         accountCode = accountCode.substring(3);
       }
 
+      final candidates = <String>[];
+      
+      // 1. Try with decrypted account ID
       final decryptedAccountId = simpleDecrypt(accountCode);
-      final amountToWithdraw = widget.totalPrice;
-
-      // Normalize candidate formats exactly like du_mart (hyphens, suffix, etc.)
-      final candidates = [decryptedAccountId];
-      final stripped = decryptedAccountId.replaceAll(RegExp(r'[^0-9]'), '');
-      if (stripped.length == 13) {
-        candidates.add('${stripped.substring(0, 3)}-${stripped.substring(3, 7)}-${stripped.substring(7, 11)}-${stripped.substring(11)}');
-      } else if (stripped.length == 11) {
-        candidates.add('${stripped.substring(0, 3)}-${stripped.substring(3, 7)}-${stripped.substring(7)}-11');
+      candidates.add(decryptedAccountId);
+      final strippedDecrypted = decryptedAccountId.replaceAll(RegExp(r'[^0-9]'), '');
+      if (strippedDecrypted.length == 13) {
+        candidates.add('${strippedDecrypted.substring(0, 3)}-${strippedDecrypted.substring(3, 7)}-${strippedDecrypted.substring(7, 11)}-${strippedDecrypted.substring(11)}');
+      } else if (strippedDecrypted.length == 11) {
+        candidates.add('${strippedDecrypted.substring(0, 3)}-${strippedDecrypted.substring(3, 7)}-${strippedDecrypted.substring(7)}-11');
       }
       if (decryptedAccountId.length == 13 && decryptedAccountId.split('-').length == 3) {
         candidates.add('$decryptedAccountId-11');
       }
-      
+
+      // 2. Try with raw/unencrypted account ID
+      candidates.add(accountCode);
+      final strippedRaw = accountCode.replaceAll(RegExp(r'[^0-9]'), '');
+      if (strippedRaw.length == 13) {
+        candidates.add('${strippedRaw.substring(0, 3)}-${strippedRaw.substring(3, 7)}-${strippedRaw.substring(7, 11)}-${strippedRaw.substring(11)}');
+      } else if (strippedRaw.length == 11) {
+        candidates.add('${strippedRaw.substring(0, 3)}-${strippedRaw.substring(3, 7)}-${strippedRaw.substring(7)}-11');
+      }
+      if (accountCode.length == 13 && accountCode.split('-').length == 3) {
+        candidates.add('$accountCode-11');
+      }
+
       final uniqueCandidates = candidates.toSet().toList();
 
       final accountsRef = FirebaseFirestore.instance
@@ -419,10 +459,21 @@ class PayPaymentDialogState extends State<PayPaymentDialog> {
       if (accountDocs.docs.isEmpty) {
         throw Exception("계좌를 찾을 수 없습니다.");
       }
-      final targetAccountRef = accountDocs.docs.first.reference;
+      targetAccountRef = accountDocs.docs.first.reference;
+
+      // Update paymentState to 'processing'
+      await targetAccountRef.update({
+        'paymentState': {
+          'status': 'processing',
+          'amount': amountToWithdraw,
+          'storeName': widget.restaurantName,
+        }
+      });
+
+      int finalBalance = 0;
 
       await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final snapshot = await transaction.get(targetAccountRef);
+        final snapshot = await transaction.get(targetAccountRef!);
         if (!snapshot.exists) {
           throw Exception("계좌를 찾을 수 없습니다.");
         }
@@ -433,14 +484,15 @@ class PayPaymentDialogState extends State<PayPaymentDialog> {
         }
 
         final newBalance = currentBalance - amountToWithdraw;
+        finalBalance = newBalance.toInt();
         transaction.update(targetAccountRef, {"balance": newBalance});
 
         final userDocRef = targetAccountRef.parent.parent;
         if (userDocRef == null) {
           throw Exception("Could not find user document.");
         }
+        
         final newTransactionRef = userDocRef.collection('transactions').doc();
-
         final transactionData = {
           'amount': amountToWithdraw,
           'balance_after': newBalance,
@@ -449,11 +501,30 @@ class PayPaymentDialogState extends State<PayPaymentDialog> {
           'memo_to_me': '',
           'memo_to_recipient': '',
           'recipientName': widget.restaurantName,
-          'senderName': snapshot.data()?['accountHolderName'] ?? '고객',
+          'senderName': (snapshot.data() as Map<String, dynamic>?)?['accountHolderName'] ?? '고객',
           'timestamp': FieldValue.serverTimestamp(),
           'type': 'PAYMENT',
         };
         transaction.set(newTransactionRef, transactionData);
+
+        // Add Notification Document to match du_mart
+        final newNotificationRef = userDocRef.collection('notifications').doc();
+        final notificationData = {
+          'message': '${widget.restaurantName}에서 ${amountToWithdraw}원이 결제되었습니다.',
+          'read': false,
+          'timestamp': FieldValue.serverTimestamp(),
+        };
+        transaction.set(newNotificationRef, notificationData);
+      });
+
+      // Update paymentState to 'success'
+      await targetAccountRef.update({
+        'paymentState': {
+          'status': 'success',
+          'amount': amountToWithdraw,
+          'storeName': widget.restaurantName,
+          'balanceAfter': finalBalance,
+        }
       });
 
       Navigator.of(context).pop(); // Close processing dialog
@@ -461,15 +532,37 @@ class PayPaymentDialogState extends State<PayPaymentDialog> {
         _isLoading = false;
       });
 
-      await showCustomDialog(
+      final cart = context.read<ShoppingCart>();
+      final receiptItems = cart.items.map((cartItem) => {
+        'name': cartItem.item.name,
+        'quantity': cartItem.quantity,
+        'price': cartItem.item.price,
+      }).toList();
+
+      await ReceiptDialog.show(
         context: context,
-        title: '결제 완료',
-        content: '${widget.totalPrice}원 결제가 완료되었습니다.',
+        restaurantName: widget.restaurantName,
+        tableNumber: widget.tableNumber,
+        totalPrice: widget.totalPrice,
+        balanceAfter: finalBalance,
+        items: receiptItems,
       );
 
       await widget.onSubmit('페이결제');
       Navigator.of(context).pop(); // Close payment dialog
     } catch (e) {
+      if (targetAccountRef != null) {
+        try {
+          await targetAccountRef.update({
+            'paymentState': {
+              'status': 'failed',
+              'amount': amountToWithdraw,
+              'storeName': widget.restaurantName,
+              'message': e.toString(),
+            }
+          });
+        } catch (_) {}
+      }
       Navigator.of(context).pop(); // Close processing dialog
       setState(() {
         _isLoading = false;

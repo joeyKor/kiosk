@@ -10,6 +10,8 @@ import 'package:kiosk/models/menu_item.dart';
 import 'package:kiosk/widgets/custom_dialog.dart';
 import 'package:kiosk/widgets/pin_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:kiosk/util/decrypt.dart';
+import 'package:kiosk/widgets/receipt_dialog.dart';
 
 class OwnerModePage extends StatefulWidget {
   final String restaurantName;
@@ -1721,29 +1723,19 @@ class _OwnerModePageState extends State<OwnerModePage>
                   ),
                   onSubmitted: (val) async {
                     Navigator.pop(context);
-                    await _processTablePayment(summary, '페이결제');
-                    if (context.mounted) {
-                      showCustomDialog(
-                        context: context,
-                        title: '페이 결제 완료',
-                        content: '간편 페이 결제가 성공적으로 완료되었습니다.',
-                      );
-                    }
+                    await _handleOwnerPayPayment(summary, val);
                   },
                 ),
                 const SizedBox(height: 12),
                 // Tap to simulate payment completion button
                 TextButton(
                   onPressed: () async {
-                    Navigator.pop(context);
-                    await _processTablePayment(summary, '페이결제');
-                    if (context.mounted) {
-                      showCustomDialog(
-                        context: context,
-                        title: '페이 결제 완료',
-                        content: '간편 페이 결제가 성공적으로 완료되었습니다.',
-                      );
+                    String testCode = scannerController.text.trim();
+                    if (testCode.isEmpty) {
+                      testCode = "pay0102792989111"; // Default test account
                     }
+                    Navigator.pop(context);
+                    await _handleOwnerPayPayment(summary, testCode);
                   },
                   child: const Text('스캔 테스트 (결제 승인)', style: TextStyle(color: Color(0xFF00A896), fontSize: 13)),
                 ),
@@ -1957,40 +1949,22 @@ class _OwnerModePageState extends State<OwnerModePage>
                                       changeAmount: changeAmount,
                                     );
                                     if (context.mounted) {
-                                      showDialog(
+                                      final receiptItems = summary.items.values.map((aggItem) => {
+                                        'name': aggItem.name,
+                                        'quantity': aggItem.quantity,
+                                        'price': aggItem.unitPrice,
+                                      }).toList();
+
+                                      await ReceiptDialog.show(
                                         context: context,
-                                        builder: (context) => AlertDialog(
-                                          backgroundColor: const Color(0xFF1E202C),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                          title: const Text('현금 결제 완료', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                          content: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Row(
-                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                children: [
-                                                  const Text('받은 금액:', style: TextStyle(color: Colors.white70)),
-                                                  Text('${NumberFormat('#,##0', 'ko_KR').format(receivedAmount)}원', style: const TextStyle(color: Color(0xFFF3C63F), fontWeight: FontWeight.bold)),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Row(
-                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                children: [
-                                                  const Text('거스름돈:', style: TextStyle(color: Colors.white70)),
-                                                  Text('${NumberFormat('#,##0', 'ko_KR').format(changeAmount)}원', style: const TextStyle(color: Color(0xFF2ECC71), fontSize: 22, fontWeight: FontWeight.bold)),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                          actions: [
-                                            ElevatedButton(
-                                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF007A87)),
-                                              onPressed: () => Navigator.pop(context),
-                                              child: const Text('확인', style: TextStyle(color: Colors.white)),
-                                            ),
-                                          ],
-                                        ),
+                                        restaurantName: widget.restaurantName,
+                                        tableNumber: summary.tableNumber,
+                                        totalPrice: summary.totalAmount,
+                                        balanceAfter: 0,
+                                        items: receiptItems,
+                                        paymentMethod: '현금',
+                                        receivedAmount: receivedAmount,
+                                        changeAmount: changeAmount,
                                       );
                                     }
                                   }
@@ -2030,6 +2004,194 @@ class _OwnerModePageState extends State<OwnerModePage>
         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
       ),
     );
+  }
+
+  Future<void> _handleOwnerPayPayment(_TablePaymentSummary summary, String barcode) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Dialog(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text("결제 처리 중..."),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    DocumentReference? targetAccountRef;
+    final amountToWithdraw = summary.totalAmount;
+    try {
+      String rawInput = barcode.trim();
+      for (final korPrefix in ["ㅔ묘", "ㅖ묘", "ㅔ됴", "ㅖ됴"]) {
+        if (rawInput.startsWith(korPrefix)) {
+          rawInput = "pay" + rawInput.substring(korPrefix.length);
+          break;
+        }
+      }
+      
+      String accountCode = rawInput;
+      if (accountCode.startsWith("pay")) {
+        accountCode = accountCode.substring(3);
+      }
+
+      if (accountCode.isEmpty) {
+        throw Exception("결제 코드가 올바르지 않습니다.");
+      }
+
+      final candidates = <String>[];
+      
+      // 1. Try with decrypted account ID
+      final decryptedAccountId = simpleDecrypt(accountCode);
+      candidates.add(decryptedAccountId);
+      final strippedDecrypted = decryptedAccountId.replaceAll(RegExp(r'[^0-9]'), '');
+      if (strippedDecrypted.length == 13) {
+        candidates.add('${strippedDecrypted.substring(0, 3)}-${strippedDecrypted.substring(3, 7)}-${strippedDecrypted.substring(7, 11)}-${strippedDecrypted.substring(11)}');
+      } else if (strippedDecrypted.length == 11) {
+        candidates.add('${strippedDecrypted.substring(0, 3)}-${strippedDecrypted.substring(3, 7)}-${strippedDecrypted.substring(7)}-11');
+      }
+      if (decryptedAccountId.length == 13 && decryptedAccountId.split('-').length == 3) {
+        candidates.add('$decryptedAccountId-11');
+      }
+
+      // 2. Try with raw/unencrypted account ID
+      candidates.add(accountCode);
+      final strippedRaw = accountCode.replaceAll(RegExp(r'[^0-9]'), '');
+      if (strippedRaw.length == 13) {
+        candidates.add('${strippedRaw.substring(0, 3)}-${strippedRaw.substring(3, 7)}-${strippedRaw.substring(7, 11)}-${strippedRaw.substring(11)}');
+      } else if (strippedRaw.length == 11) {
+        candidates.add('${strippedRaw.substring(0, 3)}-${strippedRaw.substring(3, 7)}-${strippedRaw.substring(7)}-11');
+      }
+      if (accountCode.length == 13 && accountCode.split('-').length == 3) {
+        candidates.add('$accountCode-11');
+      }
+
+      final uniqueCandidates = candidates.toSet().toList();
+
+      final accountsRef = FirebaseFirestore.instance
+          .collectionGroup('accounts')
+          .where('accountNumber', whereIn: uniqueCandidates);
+      final accountDocs = await accountsRef.get();
+      if (accountDocs.docs.isEmpty) {
+        throw Exception("계좌를 찾을 수 없습니다.");
+      }
+      targetAccountRef = accountDocs.docs.first.reference;
+
+      // Update paymentState to 'processing'
+      await targetAccountRef.update({
+        'paymentState': {
+          'status': 'processing',
+          'amount': amountToWithdraw,
+          'storeName': widget.restaurantName,
+        }
+      });
+
+      int finalBalance = 0;
+
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final snapshot = await transaction.get(targetAccountRef!);
+        if (!snapshot.exists) {
+          throw Exception("계좌를 찾을 수 없습니다.");
+        }
+
+        final currentBalance = snapshot.get("balance");
+        if (currentBalance < amountToWithdraw) {
+          throw Exception("잔액이 부족합니다.");
+        }
+
+        final newBalance = currentBalance - amountToWithdraw;
+        finalBalance = newBalance.toInt();
+        transaction.update(targetAccountRef, {"balance": newBalance});
+
+        final userDocRef = targetAccountRef.parent.parent;
+        if (userDocRef == null) {
+          throw Exception("Could not find user document.");
+        }
+        
+        final newTransactionRef = userDocRef.collection('transactions').doc();
+        final transactionData = {
+          'amount': amountToWithdraw,
+          'balance_after': newBalance,
+          'description': widget.restaurantName,
+          'is_deposit': false,
+          'memo_to_me': '',
+          'memo_to_recipient': '',
+          'recipientName': widget.restaurantName,
+          'senderName': (snapshot.data() as Map<String, dynamic>?)?['accountHolderName'] ?? '고객',
+          'timestamp': FieldValue.serverTimestamp(),
+          'type': 'PAYMENT',
+        };
+        transaction.set(newTransactionRef, transactionData);
+
+        // Add Notification Document to match du_mart
+        final newNotificationRef = userDocRef.collection('notifications').doc();
+        final notificationData = {
+          'message': '${widget.restaurantName}에서 ${amountToWithdraw}원이 결제되었습니다.',
+          'read': false,
+          'timestamp': FieldValue.serverTimestamp(),
+        };
+        transaction.set(newNotificationRef, notificationData);
+      });
+
+      // Update paymentState to 'success'
+      await targetAccountRef.update({
+        'paymentState': {
+          'status': 'success',
+          'amount': amountToWithdraw,
+          'storeName': widget.restaurantName,
+          'balanceAfter': finalBalance,
+        }
+      });
+
+      if (context.mounted) {
+        Navigator.pop(context); // Close processing dialog
+        await _processTablePayment(summary, '페이결제');
+        
+        final receiptItems = summary.items.values.map((aggItem) => {
+          'name': aggItem.name,
+          'quantity': aggItem.quantity,
+          'price': aggItem.unitPrice,
+        }).toList();
+
+        await ReceiptDialog.show(
+          context: context,
+          restaurantName: widget.restaurantName,
+          tableNumber: summary.tableNumber,
+          totalPrice: summary.totalAmount,
+          balanceAfter: finalBalance,
+          items: receiptItems,
+        );
+      }
+    } catch (e) {
+      if (targetAccountRef != null) {
+        try {
+          await targetAccountRef.update({
+            'paymentState': {
+              'status': 'failed',
+              'amount': amountToWithdraw,
+              'storeName': widget.restaurantName,
+              'message': e.toString(),
+            }
+          });
+        } catch (_) {}
+      }
+      if (context.mounted) {
+        Navigator.pop(context); // Close processing dialog
+        showCustomDialog(
+          context: context,
+          title: '결제 오류',
+          content: e.toString(),
+        );
+      }
+    }
   }
 
   Future<void> _processTablePayment(

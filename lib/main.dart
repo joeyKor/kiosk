@@ -377,6 +377,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
           totalPrice: cart.totalPrice,
           onSubmit: (paymentMethod) => _submitOrder(paymentMethod),
           restaurantName: _restaurantName,
+          tableNumber: _tableNumber,
         );
       },
     );
@@ -1285,7 +1286,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
             ),
           ),
           const Text(
-            'ver 3.16',
+            'ver 3.17',
             style: TextStyle(
               color: Colors.grey,
               fontSize: 11,
@@ -1406,6 +1407,8 @@ class _KioskHomePageState extends State<KioskHomePage> {
                         builder: (context) => OrderHistoryPage(
                           restaurantName: _restaurantName,
                           tableNumber: _tableNumber,
+                          menuItems: _menuItems,
+                          imageFolderPath: _imageFolderPath,
                         ),
                       ),
                     );
