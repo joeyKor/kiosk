@@ -210,6 +210,23 @@ class _OwnerModePageState extends State<OwnerModePage>
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
+                    // Restaurant Name Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF007A87),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        _restaurantNameState.isEmpty ? '조이김밥' : _restaurantNameState,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
                     // Tab Buttons Group 1: 주문
                     _buildSegmentedGroup([
                       _buildSegmentedButton(
@@ -276,13 +293,13 @@ class _OwnerModePageState extends State<OwnerModePage>
                     const Spacer(),
                      // Shop Modify Button (가게 수정)
                     _buildHeaderButton(
-                      label: '가게 수정',
+                      label: '매장 관리',
                       isActive: false,
                       onTap: () async {
                         final authenticated = await StorePinDialog.show(
                           context,
                           restaurantName: _restaurantNameState,
-                          actionTitle: '가게 수정',
+                          actionTitle: '매장 관리',
                         );
                         if (authenticated) {
                           await Navigator.push(

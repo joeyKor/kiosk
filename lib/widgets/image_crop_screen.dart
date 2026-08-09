@@ -178,16 +178,16 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                 final double screenH = constraints.maxHeight;
 
                 if (_displayW == 0 && _displayH == 0) {
-                  // Fit image nicely into screen area
+                  // Fit image so it covers the target crop box (cover fit)
                   final double imgAspect = _uiImage!.width / _uiImage!.height;
-                  final double containerAspect = screenW / screenH;
+                  final double targetAspect = targetBoxW / targetBoxH;
 
-                  if (imgAspect > containerAspect) {
-                    _displayW = screenW;
-                    _displayH = screenW / imgAspect;
+                  if (imgAspect > targetAspect) {
+                    _displayH = targetBoxH;
+                    _displayW = targetBoxH * imgAspect;
                   } else {
-                    _displayH = screenH;
-                    _displayW = screenH * imgAspect;
+                    _displayW = targetBoxW;
+                    _displayH = targetBoxW / imgAspect;
                   }
 
                   final double initialTx = (targetBoxW - _displayW) / 2;
@@ -207,24 +207,17 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                         width: targetBoxW,
                         height: targetBoxH,
                         child: ClipRect(
-                          child: OverflowBox(
-                            alignment: Alignment.center,
-                            minWidth: 0,
-                            maxWidth: double.infinity,
-                            minHeight: 0,
-                            maxHeight: double.infinity,
-                            child: InteractiveViewer(
-                              transformationController: _transformationController,
-                              boundaryMargin: const EdgeInsets.all(double.infinity),
-                              minScale: 0.2,
-                              maxScale: 5.0,
-                              child: SizedBox(
-                                width: _displayW,
-                                height: _displayH,
-                                child: RawImage(
-                                  image: _uiImage,
-                                  fit: BoxFit.fill,
-                                ),
+                          child: InteractiveViewer(
+                            transformationController: _transformationController,
+                            boundaryMargin: const EdgeInsets.all(double.infinity),
+                            minScale: 0.2,
+                            maxScale: 5.0,
+                            child: SizedBox(
+                              width: _displayW,
+                              height: _displayH,
+                              child: RawImage(
+                                image: _uiImage,
+                                fit: BoxFit.fill,
                               ),
                             ),
                           ),

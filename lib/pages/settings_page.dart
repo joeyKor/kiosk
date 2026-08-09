@@ -156,7 +156,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   final newName = controller.text;
                   setState(() {
                     _categories[index] = newName;
-                    _menuItems[newName] = _menuItems[oldName]!;
+                    final items = _menuItems[oldName];
+                    if (items != null) {
+                      for (final item in items) {
+                        item.category = newName;
+                      }
+                      _menuItems[newName] = items;
+                    } else {
+                      _menuItems[newName] = [];
+                    }
                     _menuItems.remove(oldName);
                     if (_selectedCategory == oldName) {
                       _selectedCategory = newName;
@@ -888,7 +896,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    '가게 수정',
+                    '매장 관리',
                     style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const Spacer(),
