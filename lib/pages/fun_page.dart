@@ -1,8 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:kiosk/services/localization_service.dart';
 
 class RouletteWidget extends StatefulWidget {
-  const RouletteWidget({super.key});
+  final String langCode;
+  const RouletteWidget({super.key, required this.langCode});
 
   @override
   State<RouletteWidget> createState() => _RouletteWidgetState();
@@ -106,10 +108,10 @@ class _RouletteWidgetState extends State<RouletteWidget> with SingleTickerProvid
         return AlertDialog(
           backgroundColor: const Color(0xFF1E202C),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          title: const Text(
-            '🎯 오늘의 벌칙자!',
+          title: Text(
+            LocalizationService.instance.translate('fun_winner_title', widget.langCode),
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -125,13 +127,14 @@ class _RouletteWidgetState extends State<RouletteWidget> with SingleTickerProvid
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  '${winnerIndex + 1}번',
+                  '${winnerIndex + 1}${LocalizationService.instance.translate('fun_winner_unit', widget.langCode)}',
                   style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
                 ),
               ),
               const SizedBox(height: 20),
               Text(
-                '오늘 식사값은 ${winnerIndex + 1}번이 쏩니다! 🥳💸',
+                LocalizationService.instance.translate('fun_winner_desc', widget.langCode)
+                    .replaceAll('{winner}', '${winnerIndex + 1}'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white, fontSize: 18),
               ),
@@ -145,7 +148,10 @@ class _RouletteWidgetState extends State<RouletteWidget> with SingleTickerProvid
                 backgroundColor: const Color(0xFF007A87),
                 padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
               ),
-              child: const Text('확인', style: TextStyle(color: Colors.white, fontSize: 16)),
+              child: Text(
+                LocalizationService.instance.translate('fun_ok', widget.langCode),
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
             ),
           ],
         );
@@ -166,13 +172,13 @@ class _RouletteWidgetState extends State<RouletteWidget> with SingleTickerProvid
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
-                  '내기 룰렛 돌리기 🎯',
-                  style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                Text(
+                  LocalizationService.instance.translate('fun_title', widget.langCode),
+                  style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '각자 번호를 하나씩 고른 후 SPIN을 눌러 당첨자를 뽑아보세요!',
+                  LocalizationService.instance.translate('fun_subtitle', widget.langCode),
                   style: TextStyle(color: Colors.grey[500], fontSize: 14),
                 ),
                 const SizedBox(height: 30),
@@ -245,14 +251,14 @@ class _RouletteWidgetState extends State<RouletteWidget> with SingleTickerProvid
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '내기 설정',
-                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  Text(
+                    LocalizationService.instance.translate('fun_settings', widget.langCode),
+                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    '참여 인원수 설정',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  Text(
+                    LocalizationService.instance.translate('fun_participants_label', widget.langCode),
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                   const SizedBox(height: 12),
                   // Participant Count Incrementer
@@ -281,7 +287,7 @@ class _RouletteWidgetState extends State<RouletteWidget> with SingleTickerProvid
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Text(
-                          '$_numParticipants명',
+                          '$_numParticipants${LocalizationService.instance.translate('fun_participants_unit', widget.langCode)}',
                           style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -309,14 +315,14 @@ class _RouletteWidgetState extends State<RouletteWidget> with SingleTickerProvid
                   const SizedBox(height: 24),
                   const Divider(color: Colors.grey, thickness: 0.5),
                   const SizedBox(height: 16),
-                  const Text(
-                    '진행 규칙 💡',
-                    style: TextStyle(color: Color(0xFFF3C63F), fontSize: 16, fontWeight: FontWeight.bold),
+                  Text(
+                    LocalizationService.instance.translate('fun_rules_title', widget.langCode),
+                    style: const TextStyle(color: Color(0xFFF3C63F), fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  _buildRuleText('1. 각자 순서대로 1번부터 번호를 하나씩 정합니다.'),
-                  _buildRuleText('2. 번호 선정이 끝나면 룰렛을 돌립니다.'),
-                  _buildRuleText('3. 화살표가 가리키는 당첨 번호에 배정된 사람이 패배자가 되어 오늘 쏘는 걸로 합니다!'),
+                  _buildRuleText(LocalizationService.instance.translate('fun_rule_1', widget.langCode)),
+                  _buildRuleText(LocalizationService.instance.translate('fun_rule_2', widget.langCode)),
+                  _buildRuleText(LocalizationService.instance.translate('fun_rule_3', widget.langCode)),
                   const Spacer(),
                   // Legends
                   Container(
@@ -342,7 +348,7 @@ class _RouletteWidgetState extends State<RouletteWidget> with SingleTickerProvid
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '${index + 1}번',
+                              '${index + 1}${LocalizationService.instance.translate('fun_winner_unit', widget.langCode)}',
                               style: const TextStyle(color: Colors.white, fontSize: 12),
                             ),
                           ],

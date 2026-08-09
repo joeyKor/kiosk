@@ -8,19 +8,29 @@ import 'package:kiosk/widgets/image_display.dart';
 import 'package:kiosk/main.dart';
 import 'package:kiosk/util/add_to_cart_animation.dart';
 
+import 'package:kiosk/services/localization_service.dart';
+
 class MenuGrid extends StatelessWidget {
   final List<MenuItem> items;
   final String? imageFolderPath;
+  final String langCode;
   final NumberFormat currencyFormat = NumberFormat('#,##0', 'ko_KR');
 
-  MenuGrid({super.key, required this.items, required this.imageFolderPath});
-
-
+  MenuGrid({
+    super.key,
+    required this.items,
+    required this.imageFolderPath,
+    required this.langCode,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return const Center(child: Text('이 카테고리에 메뉴가 없습니다.'));
+      return Center(
+        child: Text(
+          langCode == 'ko' ? '이 카테고리에 메뉴가 없습니다.' : 'No items in this category.',
+        ),
+      );
     }
 
     return GridView.builder(
@@ -37,6 +47,9 @@ class MenuGrid extends StatelessWidget {
         final bool isBest = item.isBest;
         final bool isNew = item.isNew;
         
+        final translatedName = LocalizationService.instance.translateMenuItemName(item.name, langCode);
+        final translatedDesc = LocalizationService.instance.translateMenuItemDescription(item.description ?? '', item.name, langCode);
+
         return GestureDetector(
           onTap: () {
             showDialog(
@@ -119,7 +132,7 @@ class MenuGrid extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item.name,
+                          translatedName,
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 18,
@@ -131,7 +144,7 @@ class MenuGrid extends StatelessWidget {
                         const SizedBox(height: 4),
                         Expanded(
                           child: Text(
-                            item.description ?? '',
+                            translatedDesc,
                             style: TextStyle(
                               fontSize: 13,
                               color: Colors.grey[500],
@@ -174,9 +187,9 @@ class MenuGrid extends StatelessWidget {
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                     ),
-                                    child: const Text(
-                                      '담기',
-                                      style: TextStyle(
+                                    child: Text(
+                                      langCode == 'ko' ? '담기' : 'Add',
+                                      style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
                                       ),

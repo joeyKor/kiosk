@@ -206,27 +206,15 @@ class _OwnerModePageState extends State<OwnerModePage>
             children: [
               // Custom Dark Header Bar
               Container(
-                color: const Color(0xFF000000),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF000000),
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFF2C2E3E), width: 1.5),
+                  ),
+                ),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
-                    // Restaurant Name Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF007A87),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        _restaurantNameState.isEmpty ? '조이김밥' : _restaurantNameState,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
                     // Tab Buttons Group 1: 주문
                     _buildSegmentedGroup([
                       _buildSegmentedButton(
@@ -291,6 +279,46 @@ class _OwnerModePageState extends State<OwnerModePage>
                       onPressed: () => setState(() {}),
                     ),
                     const Spacer(),
+                    // Premium Restaurant Name Badge (Repositioned to the left of Store Settings)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A), // Premium dark navy
+                        borderRadius: BorderRadius.circular(20), // Pill style
+                        border: Border.all(
+                          color: const Color(0xFF007A87), // Teal border
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF007A87).withOpacity(0.3),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          )
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.storefront,
+                            color: Color(0xFF00D1FF), // Bright teal icon
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _restaurantNameState.isEmpty ? '조이김밥' : _restaurantNameState,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
                      // Shop Modify Button (가게 수정)
                     _buildHeaderButton(
                       label: '매장 관리',

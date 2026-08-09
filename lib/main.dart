@@ -26,6 +26,8 @@ import 'package:kiosk/pages/order_completed_page.dart';
 import 'package:kiosk/widgets/custom_dialog.dart';
 import 'package:kiosk/widgets/pin_dialog.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:kiosk/services/firebase_service.dart';
+import 'package:kiosk/services/localization_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -90,6 +92,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
   bool _showCart = false;
   bool _showWelcome = true;
   String _activeSidebarTab = 'menu';
+  String _langCode = 'ko';
 
   @override
   void initState() {
@@ -106,18 +109,16 @@ class _KioskHomePageState extends State<KioskHomePage> {
   Future<void> _checkOrderHistory() async {
     if (_restaurantName.isEmpty || _tableNumber.isEmpty) return;
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection('orders')
-        .where('restaurantName', isEqualTo: _restaurantName)
-        .where('tableNumber', isEqualTo: _tableNumber)
-        .where('completed', isEqualTo: false)
-        .limit(1)
-        .get();
-
-    if (mounted) {
-      setState(() {
-        _hasOrders = snapshot.docs.isNotEmpty;
-      });
+    try {
+      final hasActiveOrders = await FirebaseService.instance
+          .checkActiveOrderHistory(_restaurantName, _tableNumber);
+      if (mounted) {
+        setState(() {
+          _hasOrders = hasActiveOrders;
+        });
+      }
+    } catch (e) {
+      print("Error checking order history: $e");
     }
   }
 
@@ -129,6 +130,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
       _restaurantName = prefs.getString('restaurantName') ?? '조이김밥';
       if (_restaurantName.isEmpty) _restaurantName = '조이김밥';
       _imageFolderPath = prefs.getString('imageFolderPath');
+      _langCode = prefs.getString('langCode') ?? 'ko';
     });
 
     if (_imageFolderPath == null || _imageFolderPath!.isEmpty) {
@@ -184,83 +186,24 @@ class _KioskHomePageState extends State<KioskHomePage> {
     }
 
     try {
-      final restaurantRef = FirebaseFirestore.instance
-          .collection('restaurants')
-          .doc(_restaurantName);
-      final docSnapshot = await restaurantRef.get();
-
-      List<String> categories = [];
-      if (docSnapshot.exists && docSnapshot.data()!.containsKey('categories')) {
-        categories = List<String>.from(docSnapshot.data()!['categories']);
+      final data = await FirebaseService.instance.loadCategoriesAndMenu(_restaurantName);
+      if (mounted) {
+        setState(() {
+          _categories = List<String>.from(data['categories'] ?? []);
+          _menuItems = Map<String, List<MenuItem>>.from(data['menuItems'] ?? {});
+          _isLoading = false;
+        });
       }
-
-      final menuItemsSnapshot = await restaurantRef
-          .collection('menuItems')
-          .get();
-      final Map<String, List<MenuItem>> menuItems = {};
-      for (final doc in menuItemsSnapshot.docs) {
-        final item = MenuItem.fromJson(doc.data());
-        if (menuItems.containsKey(item.category)) {
-          menuItems[item.category]!.add(item);
-        } else {
-          menuItems[item.category] = [item];
-        }
-      }
-
-      if (_restaurantName == '조이김밥' && (categories.isEmpty || menuItemsSnapshot.docs.isEmpty)) {
-        categories = ['김밥', '분식', '음료'];
-        await restaurantRef.set({'categories': categories}, SetOptions(merge: true));
-
-        final defaultItems = [
-          MenuItem(name: '조이김밥', category: '김밥', price: 3500, description: '정갈하고 든든한 기본 야채 김밥', image: 'assets/images/joy_gimbap.png', order: 1),
-          MenuItem(name: '참치김밥', category: '김밥', price: 4500, description: '참치마요를 듬뿍 넣어 부드러운 김밥', image: 'assets/images/tuna_gimbap.png', order: 2),
-          MenuItem(name: '치즈김밥', category: '김밥', price: 4200, description: '부드러운 체다치즈가 들어간 고소한 김밥', image: 'assets/images/cheese_gimbap.png', order: 3),
-          MenuItem(name: '김치김밥', category: '김밥', price: 4200, description: '매콤 칼칼한 김치가 아삭 씹히는 김밥', image: 'assets/images/kimchi_gimbap.png', isNew: true, order: 4),
-          MenuItem(name: '돈가스김밥', category: '김밥', price: 4800, description: '바삭하고 두툼한 돈가스가 들어간 김밥', image: 'assets/images/tonkatsu_gimbap.png', isBest: true, order: 5),
-          MenuItem(name: '스팸김밥', category: '김밥', price: 4500, description: '짭조름하고 고소한 스팸이 듬뿍 들어간 김밥', image: 'assets/images/spam_gimbap.png', order: 6),
-
-          MenuItem(name: '국물떡볶이', category: '분식', price: 5000, description: '매콤달콤한 국물 떡볶이', image: 'assets/images/tteokbokki.png', isBest: true, order: 1),
-          MenuItem(name: '모듬튀김', category: '분식', price: 4500, description: '바삭하게 튀겨낸 다양한 튀김', image: 'assets/images/fried_platter.png', order: 2),
-          MenuItem(name: '찰순대', category: '분식', price: 4000, description: '쫄깃하고 맛있는 전통 순대', image: 'assets/images/soondae.png', order: 3),
-
-          MenuItem(name: '콜라', category: '음료', price: 2000, description: '시원한 캔 콜라', image: 'assets/images/cola.png', order: 1),
-          MenuItem(name: '사이다', category: '음료', price: 2000, description: '청량한 캔 사이다', image: 'assets/images/cider.png', order: 2),
-          MenuItem(name: '쿨피스', category: '음료', price: 1500, description: '달콤하고 상큼한 쿨피스', image: 'assets/images/coolpis.png', order: 3),
-        ];
-
-        final batch = FirebaseFirestore.instance.batch();
-        for (final item in defaultItems) {
-          final docRef = restaurantRef.collection('menuItems').doc(item.name);
-          batch.set(docRef, item.toJson());
-        }
-        await batch.commit();
-
-        menuItems.clear();
-        for (final item in defaultItems) {
-          if (!menuItems.containsKey(item.category)) {
-            menuItems[item.category] = [];
-          }
-          menuItems[item.category]!.add(item);
-        }
-      }
-
-      setState(() {
-        _categories = categories;
-        _menuItems = menuItems;
-        _isLoading = false;
-      });
     } catch (e) {
       print("Error loading data from Firestore: $e");
       setState(() {
         _isLoading = false;
-        // Optionally, show an error message to the user
       });
     }
   }
 
   Future<void> _saveData() async {
     if (_restaurantName.isEmpty) {
-      // This case is handled by the UI, but as a safeguard:
       if (navigatorKey.currentContext != null) {
         showCustomDialog(
           context: navigatorKey.currentContext!,
@@ -272,47 +215,17 @@ class _KioskHomePageState extends State<KioskHomePage> {
     }
 
     try {
-      final restaurantRef = FirebaseFirestore.instance
-          .collection('restaurants')
-          .doc(_restaurantName);
-
-      final batch = FirebaseFirestore.instance.batch();
-
-      // Save categories
-      batch.set(restaurantRef, {
-        'categories': _categories,
-      }, SetOptions(merge: true));
-
-      // Save menu items
-      final menuItemsRef = restaurantRef.collection('menuItems');
-      final currentMenuItemsSnapshot = await menuItemsRef.get();
-      final currentMenuItemIds = currentMenuItemsSnapshot.docs
-          .map((doc) => doc.id)
-          .toSet();
-      final updatedMenuItemNames = <String>{};
-
-      for (final category in _categories) {
-        if (_menuItems[category] == null) continue;
-        for (final item in _menuItems[category]!) {
-          final menuItemDocRef = menuItemsRef.doc(item.name);
-          batch.set(menuItemDocRef, item.toJson());
-          updatedMenuItemNames.add(item.name);
-        }
-      }
-
-      // Delete menu items that are no longer in the list
-      final itemsToDelete = currentMenuItemIds.difference(updatedMenuItemNames);
-      for (final itemId in itemsToDelete) {
-        batch.delete(menuItemsRef.doc(itemId));
-      }
-
-      await batch.commit();
+      await FirebaseService.instance.saveCategoriesAndMenu(
+        _restaurantName,
+        _categories,
+        _menuItems,
+      );
 
       if (navigatorKey.currentContext != null) {
         showCustomDialog(
           context: navigatorKey.currentContext!,
           title: '저장 완료',
-          content: '데이터가 에 성공적으로 저장되었습니다.',
+          content: '데이터가 성공적으로 저장되었습니다.',
         );
       }
     } catch (e) {
@@ -320,7 +233,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
         showCustomDialog(
           context: navigatorKey.currentContext!,
           title: '저장 오류',
-          content: ' 저장 중 오류가 발생했습니다: $e',
+          content: '저장 중 오류가 발생했습니다: $e',
         );
       }
     }
@@ -348,27 +261,15 @@ class _KioskHomePageState extends State<KioskHomePage> {
       return;
     }
 
-    final orderData = {
-      'orderTime': Timestamp.now(),
-      'restaurantName': _restaurantName,
-      'tableNumber': _tableNumber,
-      'completed': false,
-      'items': cart.items
-          .map(
-            (cartItem) => {
-              'name': cartItem.item.name,
-              'quantity': cartItem.quantity,
-              'price': cartItem.item.price,
-            },
-          )
-          .toList(),
-      'totalPrice': cart.totalPrice,
-      'paymentMethod': paymentMethod,
-    };
-
     try {
       final List<CartItem> orderedItems = List.from(cart.items);
-      await FirebaseFirestore.instance.collection('orders').add(orderData);
+      await FirebaseService.instance.submitOrder(
+        restaurantName: _restaurantName,
+        tableNumber: _tableNumber,
+        totalPrice: cart.totalPrice.toDouble(),
+        paymentMethod: paymentMethod,
+        cartItems: orderedItems,
+      );
 
       cart.clearCart();
 
@@ -581,7 +482,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        '기 다 리 지  말 고 !',
+                        LocalizationService.instance.translate('welcome_subtitle', _langCode),
                         style: TextStyle(
                           fontSize: 36,
                           fontStyle: FontStyle.italic,
@@ -591,17 +492,17 @@ class _KioskHomePageState extends State<KioskHomePage> {
                         ),
                       ),
                       const SizedBox(height: 30),
-                      const Text(
-                        '터치 후',
-                        style: TextStyle(
+                      Text(
+                        LocalizationService.instance.translate('welcome_touch', _langCode),
+                        style: const TextStyle(
                           fontSize: 80,
                           fontWeight: FontWeight.w900,
                           color: Color(0xFFE55A44), // Orange-red color
                         ),
                       ),
-                      const Text(
-                        '주문하세요',
-                        style: TextStyle(
+                      Text(
+                        LocalizationService.instance.translate('welcome_order', _langCode),
+                        style: const TextStyle(
                           fontSize: 80,
                           fontWeight: FontWeight.w900,
                           color: Color(0xFF1E2022), // Deep dark color
@@ -647,28 +548,28 @@ class _KioskHomePageState extends State<KioskHomePage> {
                 // Step 1
                 _buildSidebarStep(
                   icon: Icons.touch_app,
-                  label: '화면터치',
+                  label: LocalizationService.instance.translate('step_touch', _langCode),
                   isActive: true,
                 ),
                 _buildStepConnector(),
                 // Step 2
                 _buildSidebarStep(
                   icon: Icons.restaurant_menu,
-                  label: '상품선택',
+                  label: LocalizationService.instance.translate('step_select', _langCode),
                   isActive: false,
                 ),
                 _buildStepConnector(),
                 // Step 3
                 _buildSidebarStep(
                   icon: Icons.credit_card,
-                  label: '결제/주문서확인',
+                  label: LocalizationService.instance.translate('step_payment', _langCode),
                   isActive: false,
                 ),
                 _buildStepConnector(),
                 // Step 4
                 _buildSidebarStep(
                   icon: Icons.check_circle_outline,
-                  label: '주문완료',
+                  label: LocalizationService.instance.translate('step_complete', _langCode),
                   isActive: false,
                 ),
                 const Spacer(),
@@ -676,6 +577,129 @@ class _KioskHomePageState extends State<KioskHomePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLanguageSelectionScreen(BuildContext context) {
+    return Container(
+      color: const Color(0xFFF9F9FB),
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            LocalizationService.instance.translate('lang_selection_title', _langCode),
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E2022),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            LocalizationService.instance.translate('lang_selection_subtitle', _langCode),
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 40),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildLanguageCard(
+                  flagEmoji: '🇰🇷',
+                  languageName: '대한민국',
+                  englishName: 'Korean',
+                  isSelected: _langCode == 'ko',
+                  onTap: () async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString('langCode', 'ko');
+                    setState(() {
+                      _langCode = 'ko';
+                      _activeSidebarTab = 'menu';
+                    });
+                  },
+                ),
+                const SizedBox(width: 40),
+                _buildLanguageCard(
+                  flagEmoji: '🇺🇸',
+                  languageName: 'English',
+                  englishName: 'US English',
+                  isSelected: _langCode == 'en',
+                  onTap: () async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString('langCode', 'en');
+                    setState(() {
+                      _langCode = 'en';
+                      _activeSidebarTab = 'menu';
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLanguageCard({
+    required String flagEmoji,
+    required String languageName,
+    required String englishName,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? const Color(0xFF007A87) : Colors.transparent,
+              width: 3,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 15,
+                spreadRadius: 2,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                flagEmoji,
+                style: const TextStyle(fontSize: 80),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                languageName,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E2022),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                englishName,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[500],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -747,7 +771,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
               child: Row(
                 children: [
                   Text(
-                    '장바구니 (${cart.itemCount})',
+                    '${LocalizationService.instance.translate('cart_title', _langCode)} (${cart.itemCount})',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
@@ -761,8 +785,8 @@ class _KioskHomePageState extends State<KioskHomePage> {
                         cart.clearCart();
                         showCustomDialog(
                           context: context,
-                          title: '알림',
-                          content: '장바구니가 비워졌습니다.',
+                          title: _langCode == 'ko' ? '알림' : 'Notice',
+                          content: _langCode == 'ko' ? '장바구니가 비워졌습니다.' : 'The cart has been cleared.',
                         );
                       },
                       style: TextButton.styleFrom(
@@ -772,9 +796,9 @@ class _KioskHomePageState extends State<KioskHomePage> {
                         ),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       ),
-                      child: const Text(
-                        '장바구니 비우기',
-                        style: TextStyle(
+                      child: Text(
+                        LocalizationService.instance.translate('cart_clear', _langCode),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -796,10 +820,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
             // Items List
             Expanded(
               child: cart.items.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
-                        '장바구니가 비어있습니다.',
-                        style: TextStyle(fontSize: 18, color: Colors.grey),
+                        LocalizationService.instance.translate('cart_empty', _langCode),
+                        style: const TextStyle(fontSize: 18, color: Colors.grey),
                       ),
                     )
                   : ListView.separated(
@@ -808,6 +832,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
                       separatorBuilder: (context, index) => const Divider(height: 30, thickness: 1),
                       itemBuilder: (context, index) {
                         final cartItem = cart.items[index];
+                        final translatedName = LocalizationService.instance.translateMenuItemName(cartItem.item.name, _langCode);
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -816,7 +841,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    cartItem.item.name,
+                                    translatedName,
                                     style: const TextStyle(
                                       fontSize: 22,
                                       fontWeight: FontWeight.bold,
@@ -903,9 +928,9 @@ class _KioskHomePageState extends State<KioskHomePage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        '총 금액',
-                        style: TextStyle(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.bold),
+                      Text(
+                        LocalizationService.instance.translate('total_price', _langCode),
+                        style: const TextStyle(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.bold),
                       ),
                       Text(
                         '${currencyFormat.format(cart.totalPrice)}원',
@@ -931,8 +956,8 @@ class _KioskHomePageState extends State<KioskHomePage> {
                         if (_restaurantName.isEmpty || _tableNumber.isEmpty) {
                           showCustomDialog(
                             context: context,
-                            title: '알림',
-                            content: '음식점 이름과 테이블 번호를 먼저 설정해주세요.',
+                            title: _langCode == 'ko' ? '알림' : 'Notice',
+                            content: LocalizationService.instance.translate('setup_required', _langCode),
                           );
                           return;
                         }
@@ -946,9 +971,9 @@ class _KioskHomePageState extends State<KioskHomePage> {
                   ),
                   elevation: 0,
                 ),
-                child: const Text(
-                  '주문하기',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                child: Text(
+                  LocalizationService.instance.translate('order_btn', _langCode),
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -1026,7 +1051,11 @@ class _KioskHomePageState extends State<KioskHomePage> {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
-                _tableNumber.isEmpty ? '2번 테이블' : (_tableNumber.contains('테이블') ? _tableNumber : '$_tableNumber번 테이블'),
+                _tableNumber.isEmpty
+                    ? '2${LocalizationService.instance.translate('table_unit', _langCode)} ${LocalizationService.instance.translate('table_label', _langCode)}'
+                    : (_tableNumber.contains('테이블') || _tableNumber.contains('Table')
+                        ? _tableNumber
+                        : '$_tableNumber${LocalizationService.instance.translate('table_unit', _langCode)} ${LocalizationService.instance.translate('table_label', _langCode)}'),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 11,
@@ -1040,7 +1069,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
           // 1. 메뉴주문 (Active)
           _buildSidebarNavItem(
             icon: Icons.restaurant_menu,
-            label: '메뉴주문',
+            label: LocalizationService.instance.translate('sidebar_order', _langCode),
             isActive: _activeSidebarTab == 'menu',
             onTap: () {
               setState(() {
@@ -1052,7 +1081,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
           // 2. FUN (Inactive)
           _buildSidebarNavItem(
             icon: Icons.sentiment_satisfied_alt_outlined,
-            label: 'FUN',
+            label: LocalizationService.instance.translate('sidebar_fun', _langCode),
             isActive: _activeSidebarTab == 'fun',
             onTap: () {
               setState(() {
@@ -1064,7 +1093,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
           // 3. LANG (Inactive)
           _buildSidebarNavItem(
             icon: Icons.language,
-            label: 'LANG',
+            label: LocalizationService.instance.translate('sidebar_lang', _langCode),
             isActive: _activeSidebarTab == 'lang',
             onTap: () {
               setState(() {
@@ -1077,22 +1106,45 @@ class _KioskHomePageState extends State<KioskHomePage> {
           GestureDetector(
             onTap: () async {
               if (_restaurantName.isNotEmpty && _tableNumber.isNotEmpty) {
-                await FirebaseFirestore.instance.collection('calls').add({
-                  'restaurantName': _restaurantName,
-                  'tableNumber': _tableNumber,
-                  'time': Timestamp.now(),
-                  'confirmed': false,
-                });
-                showCustomDialog(
-                  context: context,
-                  title: '직원 호출',
-                  content: '직원을 호출했습니다. 잠시만 기다려주세요.',
-                );
+                try {
+                  await FirebaseService.instance.callStaff(_restaurantName, _tableNumber);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.notifications_active, color: Colors.white),
+                            const SizedBox(width: 12),
+                            Text(
+                              LocalizationService.instance.translate('call_success', _langCode),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: const Color(0xFF007A87),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        margin: const EdgeInsets.all(20),
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    showCustomDialog(
+                      context: context,
+                      title: _langCode == 'ko' ? '오류' : 'Error',
+                      content: '${LocalizationService.instance.translate('call_error', _langCode)} $e',
+                    );
+                  }
+                }
               } else {
                 showCustomDialog(
                   context: context,
-                  title: '알림',
-                  content: '음식점 이름과 테이블 번호를 먼저 설정해주세요.',
+                  title: _langCode == 'ko' ? '알림' : 'Notice',
+                  content: LocalizationService.instance.translate('setup_required', _langCode),
                 );
               }
             },
@@ -1105,10 +1157,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
                 shape: BoxShape.circle,
               ),
               alignment: Alignment.center,
-              child: const Text(
-                '직원\n호출',
+              child: Text(
+                LocalizationService.instance.translate('sidebar_call', _langCode),
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -1194,7 +1246,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
               indicatorColor: const Color(0xFF007A87),
               indicatorWeight: 3.0,
               indicatorSize: TabBarIndicatorSize.label,
-              tabs: _categories.map((String name) => Tab(text: name)).toList(),
+              tabs: _categories.map((String name) => Tab(text: LocalizationService.instance.translateCategory(name, _langCode))).toList(),
             ),
           ),
           // Right Scroll Arrow
@@ -1234,9 +1286,9 @@ class _KioskHomePageState extends State<KioskHomePage> {
                   }
                 : null,
             icon: const Icon(Icons.assignment_outlined, size: 20, color: Colors.grey),
-            label: const Text(
-              '주문내역',
-              style: TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold),
+            label: Text(
+              LocalizationService.instance.translate('order_history', _langCode),
+              style: const TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
@@ -1273,9 +1325,9 @@ class _KioskHomePageState extends State<KioskHomePage> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      '주문하기',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    Text(
+                      LocalizationService.instance.translate('order_btn', _langCode),
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(width: 8),
                     Container(
@@ -1323,84 +1375,114 @@ class _KioskHomePageState extends State<KioskHomePage> {
           children: [
             // Left Sidebar
             _buildLeftSidebar(context),
-            // Main Content Area
+            // Main Content Area & Slide-out Cart Panel
             Expanded(
               child: SafeArea(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : _activeSidebarTab == 'fun'
-                        ? const RouletteWidget()
-                        : Stack(
-                            children: [
-                              Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Top Category Tab Bar
-                              Builder(
-                                builder: (tabContext) => _buildCategoryTabBar(tabContext),
-                              ),
-                              // Section Title & Menu Grid
-                              Expanded(
-                                child: _categories.isEmpty
-                                    ? const Center(
-                                        child: Text(
-                                          '메뉴가 없습니다. 설정에서 카테고리와 메뉴를 추가해주세요.',
-                                        ),
-                                      )
-                                    : TabBarView(
-                                        children: _categories.map((String name) {
-                                          return Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Padding(
-                                                padding: const EdgeInsets.only(left: 20.0, top: 16.0, bottom: 8.0),
-                                                child: Text(
-                                                  name,
-                                                  style: const TextStyle(
-                                                    fontSize: 22,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Color(0xFF1E2022),
+                    : Stack(
+                        children: [
+                          // Main content
+                          Positioned.fill(
+                            child: _activeSidebarTab == 'fun'
+                                ? RouletteWidget(langCode: _langCode)
+                                : _activeSidebarTab == 'lang'
+                                    ? _buildLanguageSelectionScreen(context)
+                                    : Stack(
+                                    children: [
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          // Top Category Tab Bar
+                                          Builder(
+                                            builder: (tabContext) => _buildCategoryTabBar(tabContext),
+                                          ),
+                                          // Section Title & Menu Grid
+                                          Expanded(
+                                            child: _categories.isEmpty
+                                                ? Center(
+                                                    child: Text(
+                                                      LocalizationService.instance.translate('empty_menu', _langCode),
+                                                    ),
+                                                  )
+                                                : TabBarView(
+                                                    children: _categories.map((String name) {
+                                                      return Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Padding(
+                                                            padding: const EdgeInsets.only(left: 20.0, top: 16.0, bottom: 8.0),
+                                                            child: Text(
+                                                              LocalizationService.instance.translateCategory(name, _langCode),
+                                                              style: const TextStyle(
+                                                                fontSize: 22,
+                                                                fontWeight: FontWeight.bold,
+                                                                color: Color(0xFF1E2022),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          Expanded(
+                                                            child: MenuGrid(
+                                                              items: _menuItems[name] ?? [],
+                                                              imageFolderPath: _imageFolderPath != null && _imageFolderPath!.isNotEmpty
+                                                                  ? '$_imageFolderPath/$_restaurantName'
+                                                                  : null,
+                                                              langCode: _langCode,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      );
+                                                    }).toList(),
                                                   ),
-                                                ),
-                                              ),
-                                              Expanded(
-                                                child: MenuGrid(
-                                                  items: _menuItems[name] ?? [],
-                                                  imageFolderPath: _imageFolderPath != null && _imageFolderPath!.isNotEmpty
-                                                      ? '$_imageFolderPath/$_restaurantName'
-                                                      : null,
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        }).toList(),
+                                          ),
+                                        ],
                                       ),
-                              ),
-                            ],
+                                      // Floating Action Buttons
+                                      if (!_showCart) _buildFloatingActionBar(context),
+                                    ],
+                                  ),
                           ),
-                          // Floating Action Buttons
-                          if (!_showCart) _buildFloatingActionBar(context),
+                          // Backdrop overlay when cart is open
+                          if (_showCart)
+                            Positioned.fill(
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _showCart = false;
+                                  });
+                                },
+                                child: Container(
+                                  color: Colors.black.withOpacity(0.3),
+                                ),
+                              ),
+                            ),
+                          // Sliding Cart Panel
+                          AnimatedPositioned(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                            top: 0,
+                            bottom: 0,
+                            right: _showCart ? 0 : -(MediaQuery.of(context).size.width * 0.45),
+                            width: MediaQuery.of(context).size.width * 0.45,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border: Border(left: BorderSide(color: Colors.grey[300]!)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.08),
+                                    blurRadius: 10,
+                                    offset: const Offset(-5, 0),
+                                  ),
+                                ],
+                              ),
+                              child: _buildCartPanel(context),
+                            ),
+                          ),
                         ],
                       ),
               ),
             ),
-            // Slide-out Cart Panel
-            if (_showCart)
-              Container(
-                width: MediaQuery.of(context).size.width * 0.45,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(left: BorderSide(color: Colors.grey[300]!)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
-                      blurRadius: 10,
-                      offset: const Offset(-5, 0),
-                    ),
-                  ],
-                ),
-                child: _buildCartPanel(context),
-              ),
           ],
         ),
       ),
