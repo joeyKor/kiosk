@@ -996,6 +996,30 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
 
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E202C),
+        title: const Text('내보내기 안내', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text(
+          '현재 매장의 이미지 폴더([$sourcePath])의 데이터를 통째로 복사합니다.\n이어서 열리는 선택창에서는 저장할 대상 위치(USB 드라이브 등)를 선택해 주세요.',
+          style: const TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('대상 폴더 선택', style: TextStyle(color: Color(0xFF007A87), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed != true) return;
+
     final targetPath = await FilePicker.platform.getDirectoryPath();
     if (targetPath == null) return;
 
@@ -1008,7 +1032,8 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     try {
-      final targetDir = Directory(targetPath);
+      final exportDestPath = '$targetPath/$_restaurantName';
+      final targetDir = Directory(exportDestPath);
       if (!await targetDir.exists()) {
         await targetDir.create(recursive: true);
       }
@@ -1017,7 +1042,7 @@ class _SettingsPageState extends State<SettingsPage> {
       await for (final entity in sourceDir.list(recursive: false)) {
         if (entity is File) {
           final fileName = entity.path.split(Platform.pathSeparator).last;
-          final destFile = File('$targetPath/$fileName');
+          final destFile = File('$exportDestPath/$fileName');
           await entity.copy(destFile.path);
           fileCount++;
         }
@@ -1028,7 +1053,7 @@ class _SettingsPageState extends State<SettingsPage> {
       showCustomDialog(
         context: context,
         title: '내보내기 완료',
-        content: '총 $fileCount개의 이미지 파일을\n[$targetPath] 폴더로 복사 완료했습니다.',
+        content: '총 $fileCount개의 이미지 파일을\n[$exportDestPath] 폴더로 복사 완료했습니다.',
       );
     } catch (e) {
       if (mounted) Navigator.pop(context);
@@ -1050,6 +1075,30 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       return;
     }
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E202C),
+        title: const Text('가져오기 안내', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text(
+          '외부(USB 등) 이미지 폴더의 데이터를 가져와 현재 매장 폴더([$destPath])에 덮어씁니다.\n이어서 열리는 선택창에서 이미지들이 들어있는 원본 폴더를 선택해 주세요.',
+          style: const TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('원본 폴더 선택', style: TextStyle(color: Color(0xFF007A87), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed != true) return;
 
     final sourcePath = await FilePicker.platform.getDirectoryPath();
     if (sourcePath == null) return;
