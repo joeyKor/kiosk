@@ -1285,7 +1285,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
             ),
           ),
           const Text(
-            'ver 3.14',
+            'ver 3.15',
             style: TextStyle(
               color: Colors.grey,
               fontSize: 11,
