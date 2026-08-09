@@ -80,18 +80,6 @@ class _SettingsPageState extends State<SettingsPage> {
     await prefs.setString('restaurantName', _restaurantName);
   }
 
-  Future<void> _pickImageFolder() async {
-    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
-
-    if (selectedDirectory != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('imageFolderPath', selectedDirectory);
-      setState(() {
-        _imageFolderPath = selectedDirectory;
-      });
-    }
-  }
-
   void _addCategory() {
     final TextEditingController controller = TextEditingController();
     showDialog(
@@ -190,7 +178,12 @@ class _SettingsPageState extends State<SettingsPage> {
     final priceController = TextEditingController(
       text: isEditing ? item.price.toString() : '',
     );
+    final descriptionController = TextEditingController(
+      text: isEditing ? (item.description ?? '') : '',
+    );
     
+    bool isBest = isEditing ? item.isBest : false;
+    bool isNew = isEditing ? item.isNew : false;
     String? imageFilename = isEditing ? item.image : null;
 
     showDialog(
@@ -199,85 +192,276 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: Text(isEditing ? '메뉴 수정' : '새 메뉴 추가'),
-              content: SingleChildScrollView(
+            return Dialog(
+              backgroundColor: const Color(0xFF1E222B),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Container(
+                width: 480,
+                padding: const EdgeInsets.all(24),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Title Bar
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isEditing ? '메뉴 수정' : '새 메뉴 추가',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white70),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Menu Name Field
                     TextField(
                       controller: nameController,
-                      autofocus: true,
-                      decoration: const InputDecoration(labelText: '메뉴 이름'),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: '메뉴 이름',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: Colors.white24),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: Color(0xFF007A87)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
                     ),
+                    const SizedBox(height: 16),
+
+                    // Price Field
                     TextField(
                       controller: priceController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: '가격'),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: 100,
-                      height: 100,
-                      child: ImageDisplay(
-                        imagePath: imageFilename,
-                        imageFolderPath: _imageFolderPath,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: '가격 (원)',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: Colors.white24),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: Color(0xFF007A87)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
-                    TextButton.icon(
-                      icon: const Icon(Icons.image),
-                      label: const Text('이미지 선택'),
-                      onPressed: () async {
-                        final String? selectedFilename = await showDialog<String>(
-                          context: context,
-                          builder: (_) => LocalImageSelector(imageFolderPath: _imageFolderPath),
-                        );
+                    const SizedBox(height: 16),
 
-                        if (selectedFilename != null) {
-                          setStateDialog(() {
-                            imageFilename = selectedFilename;
-                          });
-                        }
-                      },
+                    // Description Field
+                    TextField(
+                      controller: descriptionController,
+                      maxLines: 3,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: '메뉴 설명',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        alignLabelWithHint: true,
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: Colors.white24),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: Color(0xFF007A87)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Tags Settings
+                    Row(
+                      children: [
+                        const Text(
+                          '태그 설정: ',
+                          style: TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(width: 12),
+                        GestureDetector(
+                          onTap: () {
+                            setStateDialog(() {
+                              isBest = !isBest;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isBest ? const Color(0xFF007A87) : Colors.transparent,
+                              border: Border.all(color: isBest ? Colors.transparent : Colors.white24),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'BEST',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () {
+                            setStateDialog(() {
+                              isNew = !isNew;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isNew ? const Color(0xFF007A87) : Colors.transparent,
+                              border: Border.all(color: isNew ? Colors.transparent : Colors.white24),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'NEW',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Menu Image Selection
+                    const Text(
+                      '메뉴 이미지',
+                      style: TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        // Image Preview Box
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white10),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: ImageDisplay(
+                              imagePath: imageFilename,
+                              imageFolderPath: _imageFolderPath,
+                              itemName: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        // Choose Image Button
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF007A87),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              icon: const Icon(Icons.image_search),
+                              label: const Text('이미지 선택', style: TextStyle(fontWeight: FontWeight.bold)),
+                              onPressed: () async {
+                                final String? selectedFilename = await showDialog<String>(
+                                  context: context,
+                                  builder: (_) => LocalImageSelector(imageFolderPath: _imageFolderPath),
+                                );
+
+                                if (selectedFilename != null) {
+                                  setStateDialog(() {
+                                    imageFilename = selectedFilename;
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Action Cancel/Save Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.white24),
+                                foregroundColor: Colors.white70,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('취소', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF007A87),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: () {
+                                if (nameController.text.isEmpty || priceController.text.isEmpty) {
+                                  return;
+                                }
+
+                                final newItem = MenuItem(
+                                  name: nameController.text,
+                                  image: imageFilename,
+                                  price: int.tryParse(priceController.text) ?? 0,
+                                  category: categoryName,
+                                  description: descriptionController.text,
+                                  isBest: isBest,
+                                  isNew: isNew,
+                                );
+                                
+                                setState(() {
+                                  if (isEditing) {
+                                    _menuItems[categoryName]![index!] = newItem;
+                                  } else {
+                                    if (_menuItems[categoryName] == null) {
+                                      _menuItems[categoryName] = [];
+                                    }
+                                    _menuItems[categoryName]!.add(newItem);
+                                  }
+                                });
+
+                                widget.onUpdate(_categories, _menuItems);
+                                Navigator.pop(context);
+                              },
+                              child: Text(isEditing ? '저장' : '추가', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('취소'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    if (nameController.text.isEmpty || priceController.text.isEmpty) {
-                      return;
-                    }
-
-                    final newItem = MenuItem(
-                      name: nameController.text,
-                      image: imageFilename,
-                      price: int.tryParse(priceController.text) ?? 0,
-                      category: categoryName,
-                    );
-                    
-                    setState(() {
-                      if (isEditing) {
-                        _menuItems[categoryName]![index!] = newItem;
-                      } else {
-                        if (_menuItems[categoryName] == null) {
-                          _menuItems[categoryName] = [];
-                        }
-                        _menuItems[categoryName]!.add(newItem);
-                      }
-                    });
-
-                    widget.onUpdate(_categories, _menuItems);
-                    Navigator.pop(context);
-                  },
-                  child: Text(isEditing ? '저장' : '추가'),
-                ),
-              ],
             );
           },
         );
@@ -290,85 +474,6 @@ class _SettingsPageState extends State<SettingsPage> {
       _menuItems[categoryName]!.removeAt(index);
     });
     widget.onUpdate(_categories, _menuItems);
-  }
-
-  Future<void> _changePin() async {
-    final newPin = await showDialog<String>(
-      context: context,
-      builder: (context) => const ChangePinDialog(),
-    );
-
-    if (newPin != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('adminPin', newPin);
-      showCustomDialog(
-        context: context,
-        title: '성공',
-        content: 'PIN 번호가 변경되었습니다.',
-      );
-    } else {
-      showCustomDialog(
-        context: context,
-        title: '실패',
-        content: 'PIN 번호 변경에 실패했습니다. PIN 번호가 일치하지 않습니다.',
-      );
-    }
-  }
-
-  Future<void> _deleteOrders(bool deleteAll) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('삭제 확인'),
-        content: Text(deleteAll ? '모든 주문 및 호출 내역을 삭제하시겠습니까?' : '어제까지의 주문 및 호출 내역을 삭제하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('삭제'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      final batch = FirebaseFirestore.instance.batch();
-      final now = DateTime.now();
-      final startOfToday = DateTime(now.year, now.month, now.day);
-
-      // Delete orders
-      final ordersCollection = FirebaseFirestore.instance.collection('orders');
-      Query ordersQuery = ordersCollection;
-      if (!deleteAll) {
-        ordersQuery = ordersQuery.where('orderTime', isLessThan: Timestamp.fromDate(startOfToday));
-      }
-      final ordersSnapshot = await ordersQuery.get();
-      for (final doc in ordersSnapshot.docs) {
-        batch.delete(doc.reference);
-      }
-
-      // Delete calls
-      final callsCollection = FirebaseFirestore.instance.collection('calls');
-      Query callsQuery = callsCollection;
-      if (!deleteAll) {
-        callsQuery = callsQuery.where('time', isLessThan: Timestamp.fromDate(startOfToday));
-      }
-      final callsSnapshot = await callsQuery.get();
-      for (final doc in callsSnapshot.docs) {
-        batch.delete(doc.reference);
-      }
-
-      await batch.commit();
-
-      showCustomDialog(
-        context: context,
-        title: '삭제 완료',
-        content: deleteAll ? '모든 주문 및 호출 내역이 삭제되었습니다.' : '어제까지의 주문 및 호출 내역이 삭제되었습니다.',
-      );
-    }
   }
 
   Future<void> _loadSelectedRestaurantData(String newRestaurantName) async {
@@ -701,7 +806,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   const Spacer(),
                   // Save & Exit (저장 후 나가기)
                   GestureDetector(
-                    onTap: () {
+                    onTap: () async {
+                      _tableNumber = _tableNumberController.text.trim();
+                      await _saveSettings();
                       widget.onUpdate(_categories, _menuItems);
                       Navigator.of(context).pop();
                     },
@@ -734,7 +841,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Left Column (Sidebar cards)
+                    // Left Column (Sidebar cards - Basic settings only)
                     SizedBox(
                       width: 320,
                       child: SingleChildScrollView(
@@ -755,7 +862,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       const Text(
-                                        '기본 정보',
+                                        '기본 정보 설정',
                                         style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                                       ),
                                       GestureDetector(
@@ -766,7 +873,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                             Icon(Icons.edit, color: Color(0xFF007A87), size: 14),
                                             SizedBox(width: 4),
                                             Text(
-                                              '변경',
+                                              '매장 설정',
                                               style: TextStyle(color: Color(0xFF007A87), fontSize: 14, fontWeight: FontWeight.bold),
                                             ),
                                           ],
@@ -806,114 +913,24 @@ class _SettingsPageState extends State<SettingsPage> {
                                       ],
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            // Card 2: 이미지 폴더 설정
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1E202C),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    '이미지 폴더 설정',
-                                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF12131A),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      _imageFolderPath ?? '설정되지 않음',
-                                      style: const TextStyle(color: Colors.grey, fontSize: 13),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton.icon(
-                                      icon: const Icon(Icons.folder_open, color: Colors.white),
-                                      label: const Text('폴더 변경', style: TextStyle(color: Colors.white)),
-                                      onPressed: _pickImageFolder,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF007A87),
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            // Card 3: 보안 및 데이터
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1E202C),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    '보안 및 데이터',
-                                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                                  ),
                                   const SizedBox(height: 16),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: _changePin,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF2CA05A),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                  TextField(
+                                    controller: _tableNumberController,
+                                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                                    decoration: InputDecoration(
+                                      labelText: '테이블 번호',
+                                      labelStyle: const TextStyle(color: Colors.grey),
+                                      prefixIcon: const Icon(Icons.tag, color: Color(0xFF007A87)),
+                                      filled: true,
+                                      fillColor: const Color(0xFF12131A),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderSide: const BorderSide(color: Color(0xFF2C2E3E)),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      child: const Text('PIN 번호 변경'),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: () => _deleteOrders(false),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFE55A44),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderSide: const BorderSide(color: Color(0xFF007A87)),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      child: const Text('어제까지의 주문내역 삭제'),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: () => _deleteOrders(true),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFC0222B),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                      ),
-                                      child: const Text('모든 주문 내역 삭제'),
                                     ),
                                   ),
                                 ],
@@ -944,11 +961,11 @@ class _SettingsPageState extends State<SettingsPage> {
                                 ),
                                 ElevatedButton.icon(
                                   onPressed: () {
-                                    if (_restaurantName.isEmpty || _tableNumber.isEmpty) {
+                                    if (_restaurantName.isEmpty) {
                                       showCustomDialog(
                                         context: context,
                                         title: '알림',
-                                        content: '음식점 이름과 테이블 번호를 먼저 설정해주세요.',
+                                        content: '음식점 이름을 먼저 설정해주세요.',
                                       );
                                     } else {
                                       _addCategory();
@@ -980,7 +997,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                           showCustomDialog(
                                             context: context,
                                             title: '알림',
-                                            content: '음식점 이름과 테이블 번호를 먼저 설정해주세요.',
+                                            content: '음식점 이름을 먼저 설정해주세요.',
                                           );
                                           return;
                                         }

@@ -5,8 +5,10 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:intl/intl.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:kiosk/pages/settings_page.dart';
+import 'package:kiosk/pages/program_settings_page.dart';
 import 'package:kiosk/models/menu_item.dart';
 import 'package:kiosk/widgets/custom_dialog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class OwnerModePage extends StatefulWidget {
   final String restaurantName;
@@ -45,9 +47,15 @@ class _OwnerModePageState extends State<OwnerModePage>
   bool _isFlashing = false;
   Timer? _flashTimer;
 
+  String _restaurantNameState = '';
+  String? _imageFolderPathState;
+
   @override
   void initState() {
     super.initState();
+    _restaurantNameState = widget.restaurantName;
+    _imageFolderPathState = widget.imageFolderPath;
+    _loadSettings();
     _audioPlayer = AudioPlayer();
     _initTts();
 
@@ -60,6 +68,16 @@ class _OwnerModePageState extends State<OwnerModePage>
       begin: Colors.red,
       end: Colors.white,
     ).animate(_flashController);
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _restaurantNameState = prefs.getString('restaurantName') ?? widget.restaurantName;
+        _imageFolderPathState = prefs.getString('imageFolderPath') ?? widget.imageFolderPath;
+      });
+    }
   }
 
   void _startFlashingBorder() {
@@ -255,7 +273,7 @@ class _OwnerModePageState extends State<OwnerModePage>
                       onPressed: () => setState(() {}),
                     ),
                     const Spacer(),
-                    // Shop Modify Button (가게 수정)
+                     // Shop Modify Button (가게 수정)
                     _buildHeaderButton(
                       label: '가게 수정',
                       isActive: false,
@@ -267,10 +285,27 @@ class _OwnerModePageState extends State<OwnerModePage>
                               categories: widget.categories,
                               menuItems: widget.menuItems,
                               onUpdate: widget.onUpdate,
-                              imageFolderPath: widget.imageFolderPath,
+                              imageFolderPath: _imageFolderPathState,
                             ),
                           ),
                         );
+                        await _loadSettings();
+                      },
+                      color: const Color(0xFF2C2E3E),
+                    ),
+                    const SizedBox(width: 8),
+                    // Program Settings Button (프로그램 설정 변경)
+                    _buildHeaderButton(
+                      label: '프로그램 설정 변경',
+                      isActive: false,
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ProgramSettingsPage(),
+                          ),
+                        );
+                        await _loadSettings();
                       },
                       color: const Color(0xFF2C2E3E),
                     ),
@@ -374,7 +409,7 @@ class _OwnerModePageState extends State<OwnerModePage>
       return StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('orders')
-            .where('restaurantName', isEqualTo: widget.restaurantName)
+            .where('restaurantName', isEqualTo: _restaurantNameState)
             .where('orderTime', isGreaterThanOrEqualTo: startOfToday)
             .where('orderTime', isLessThan: endOfToday)
             .orderBy('orderTime', descending: true)
@@ -383,7 +418,7 @@ class _OwnerModePageState extends State<OwnerModePage>
           return StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('calls')
-                .where('restaurantName', isEqualTo: widget.restaurantName)
+                .where('restaurantName', isEqualTo: _restaurantNameState)
                 .where('time', isGreaterThanOrEqualTo: startOfToday)
                 .where('time', isLessThan: endOfToday)
                 .orderBy('time', descending: true)
@@ -606,7 +641,7 @@ class _OwnerModePageState extends State<OwnerModePage>
       return StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('orders')
-            .where('restaurantName', isEqualTo: widget.restaurantName)
+            .where('restaurantName', isEqualTo: _restaurantNameState)
             .where('orderTime', isGreaterThanOrEqualTo: startOfToday)
             .where('orderTime', isLessThan: endOfToday)
             .orderBy('orderTime', descending: true)
@@ -746,7 +781,7 @@ class _OwnerModePageState extends State<OwnerModePage>
       return StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('orders')
-            .where('restaurantName', isEqualTo: widget.restaurantName)
+            .where('restaurantName', isEqualTo: _restaurantNameState)
             .where('orderTime', isGreaterThanOrEqualTo: startOfToday)
             .where('orderTime', isLessThan: endOfToday)
             .orderBy('orderTime', descending: true)
@@ -941,7 +976,7 @@ class _OwnerModePageState extends State<OwnerModePage>
       return StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('orders')
-            .where('restaurantName', isEqualTo: widget.restaurantName)
+            .where('restaurantName', isEqualTo: _restaurantNameState)
             .where('orderTime', isGreaterThanOrEqualTo: startOfToday)
             .where('orderTime', isLessThan: endOfToday)
             .orderBy('orderTime', descending: true)
@@ -1317,7 +1352,7 @@ class _OwnerModePageState extends State<OwnerModePage>
                         children: [
                           const Text('결제 매장', style: TextStyle(color: Colors.white70, fontSize: 14)),
                           Text(
-                            widget.restaurantName.isEmpty ? '던킨도넛' : widget.restaurantName,
+                            _restaurantNameState.isEmpty ? '던킨도넛' : _restaurantNameState,
                             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         ],
