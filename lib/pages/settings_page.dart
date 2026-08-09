@@ -895,6 +895,221 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _showImageCopyDialog() async {
+    if (_restaurantName.isEmpty) {
+      showCustomDialog(
+        context: context,
+        title: '알림',
+        content: '음식점 이름을 먼저 설정해주세요.',
+      );
+      return;
+    }
+
+    if (kIsWeb) {
+      showCustomDialog(
+        context: context,
+        title: '지원되지 않음',
+        content: '웹 브라우저 환경에서는 로컬 폴더 직접 복사 기능(가져오기/내보내기)을 지원하지 않습니다. PC 설치형 앱을 이용해주세요.',
+      );
+      return;
+    }
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E202C),
+        title: const Text('이미지 파일 복사', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text(
+          '메뉴 이미지 폴더의 데이터를 가져오거나 USB 등으로 내보낼 수 있습니다.',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF007A87),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _importImageFolder();
+                    },
+                    icon: const Icon(Icons.file_download, color: Colors.white),
+                    label: const Text('가져오기', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE55A44),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _exportImageFolder();
+                    },
+                    icon: const Icon(Icons.file_upload, color: Colors.white),
+                    label: const Text('내보내기', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기', style: TextStyle(color: Colors.grey)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _exportImageFolder() async {
+    final sourcePath = _currentStoreImageFolderPath;
+    if (sourcePath == null || sourcePath.isEmpty) {
+      showCustomDialog(
+        context: context,
+        title: '폴더 미설정',
+        content: '현재 매장 이미지 폴더 경로를 찾을 수 없습니다.',
+      );
+      return;
+    }
+
+    final sourceDir = Directory(sourcePath);
+    if (!await sourceDir.exists()) {
+      showCustomDialog(
+        context: context,
+        title: '알림',
+        content: '내보낼 이미지가 존재하지 않습니다. (폴더가 생성되지 않음)',
+      );
+      return;
+    }
+
+    final targetPath = await FilePicker.platform.getDirectoryPath();
+    if (targetPath == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF007A87)),
+      ),
+    );
+
+    try {
+      final targetDir = Directory(targetPath);
+      if (!await targetDir.exists()) {
+        await targetDir.create(recursive: true);
+      }
+
+      int fileCount = 0;
+      await for (final entity in sourceDir.list(recursive: false)) {
+        if (entity is File) {
+          final fileName = entity.path.split(Platform.pathSeparator).last;
+          final destFile = File('$targetPath/$fileName');
+          await entity.copy(destFile.path);
+          fileCount++;
+        }
+      }
+
+      if (mounted) Navigator.pop(context);
+
+      showCustomDialog(
+        context: context,
+        title: '내보내기 완료',
+        content: '총 $fileCount개의 이미지 파일을\n[$targetPath] 폴더로 복사 완료했습니다.',
+      );
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      showCustomDialog(
+        context: context,
+        title: '오류',
+        content: '파일을 내보내는 중 오류가 발생했습니다: $e',
+      );
+    }
+  }
+
+  Future<void> _importImageFolder() async {
+    final destPath = _currentStoreImageFolderPath;
+    if (destPath == null || destPath.isEmpty) {
+      showCustomDialog(
+        context: context,
+        title: '폴더 미설정',
+        content: '현재 매장 이미지 폴더 경로를 설정할 수 없습니다.',
+      );
+      return;
+    }
+
+    final sourcePath = await FilePicker.platform.getDirectoryPath();
+    if (sourcePath == null) return;
+
+    final sourceDir = Directory(sourcePath);
+    if (!await sourceDir.exists()) {
+      showCustomDialog(
+        context: context,
+        title: '오류',
+        content: '선택하신 가져오기 폴더가 유효하지 않습니다.',
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF007A87)),
+      ),
+    );
+
+    try {
+      final destDir = Directory(destPath);
+      if (!await destDir.exists()) {
+        await destDir.create(recursive: true);
+      }
+
+      int fileCount = 0;
+      final supportedExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+
+      await for (final entity in sourceDir.list(recursive: false)) {
+        if (entity is File) {
+          final filePath = entity.path.toLowerCase();
+          final hasValidExtension = supportedExtensions.any((ext) => filePath.endsWith(ext));
+          
+          if (hasValidExtension) {
+            final fileName = entity.path.split(Platform.pathSeparator).last;
+            final destFile = File('$destPath/$fileName');
+            await entity.copy(destFile.path);
+            fileCount++;
+          }
+        }
+      }
+
+      if (mounted) Navigator.pop(context);
+
+      showCustomDialog(
+        context: context,
+        title: '가져오기 완료',
+        content: '총 $fileCount개의 이미지 파일을\n[$destPath] 매장 이미지 폴더로 복사 완료했습니다.',
+      );
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      showCustomDialog(
+        context: context,
+        title: '오류',
+        content: '파일을 가져오는 중 오류가 발생했습니다: $e',
+      );
+    }
+  }
+
   void _showRestaurantSelectDialog() {
     showDialog(
       context: context,
@@ -1204,6 +1419,22 @@ class _SettingsPageState extends State<SettingsPage> {
                                   icon: const Icon(Icons.delete_sweep, color: Colors.white, size: 18),
                                   label: const Text(
                                     '매장 주문/호출 내역 삭제',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF007A87),
+                                    minimumSize: const Size(double.infinity, 44),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: _showImageCopyDialog,
+                                  icon: const Icon(Icons.copy_all, color: Colors.white, size: 18),
+                                  label: const Text(
+                                    '이미지파일 복사',
                                     style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                                   ),
                                 ),
