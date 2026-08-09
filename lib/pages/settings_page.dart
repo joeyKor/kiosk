@@ -1,8 +1,14 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:kiosk/widgets/image_crop_screen.dart';
 import 'package:kiosk/widgets/change_pin_dialog.dart';
 import 'package:kiosk/widgets/pin_dialog.dart';
 import 'package:kiosk/pages/owner_mode_page.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kiosk/models/menu_item.dart';
@@ -37,6 +43,13 @@ class _SettingsPageState extends State<SettingsPage> {
   String _tableNumber = '';
   String _restaurantName = '';
   String? _imageFolderPath;
+  String? _selectedCategory;
+
+  String? get _currentStoreImageFolderPath {
+    if (_imageFolderPath == null || _imageFolderPath!.isEmpty) return null;
+    if (_restaurantName.isEmpty) return _imageFolderPath;
+    return '$_imageFolderPath/$_restaurantName';
+  }
 
   @override
   void initState() {
@@ -55,6 +68,10 @@ class _SettingsPageState extends State<SettingsPage> {
     _tableNumberController = TextEditingController();
     _restaurantNameController = TextEditingController();
     _loadSettings();
+
+    if (_categories.isNotEmpty) {
+      _selectedCategory = _categories.first;
+    }
   }
 
   @override
@@ -103,6 +120,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   setState(() {
                     _categories.add(controller.text);
                     _menuItems[controller.text] = [];
+                    _selectedCategory ??= controller.text;
                   });
                   widget.onUpdate(_categories, _menuItems);
                   Navigator.pop(context);
@@ -140,6 +158,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     _categories[index] = newName;
                     _menuItems[newName] = _menuItems[oldName]!;
                     _menuItems.remove(oldName);
+                    if (_selectedCategory == oldName) {
+                      _selectedCategory = newName;
+                    }
                   });
                   widget.onUpdate(_categories, _menuItems);
                   Navigator.pop(context);
@@ -166,6 +187,9 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _categories.removeAt(index);
       _menuItems.remove(categoryName);
+      if (_selectedCategory == categoryName) {
+        _selectedCategory = _categories.isNotEmpty ? _categories.first : null;
+      }
     });
     widget.onUpdate(_categories, _menuItems);
   }
@@ -245,6 +269,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     TextField(
                       controller: priceController,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: '가격 (원)',
@@ -354,7 +379,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             borderRadius: BorderRadius.circular(8),
                             child: ImageDisplay(
                               imagePath: imageFilename,
-                              imageFolderPath: _imageFolderPath,
+                              imageFolderPath: _currentStoreImageFolderPath,
                               itemName: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
                             ),
                           ),
@@ -375,15 +400,76 @@ class _SettingsPageState extends State<SettingsPage> {
                               icon: const Icon(Icons.image_search),
                               label: const Text('이미지 선택', style: TextStyle(fontWeight: FontWeight.bold)),
                               onPressed: () async {
-                                final String? selectedFilename = await showDialog<String>(
+                                if (nameController.text.trim().isEmpty) {
+                                  showCustomDialog(
+                                    context: context,
+                                    title: '알림',
+                                    content: '이미지를 선택하기 전에 메뉴 이름을 먼저 입력해주세요.',
+                                  );
+                                  return;
+                                }
+
+                                if (_imageFolderPath == null || _imageFolderPath!.isEmpty) {
+                                  showCustomDialog(
+                                    context: context,
+                                    title: '폴더 미설정',
+                                    content: '먼저 프로그램 설정에서 이미지 폴더를 지정해주세요.',
+                                  );
+                                  return;
+                                }
+
+                                final ImageSource? source = await showDialog<ImageSource>(
                                   context: context,
-                                  builder: (_) => LocalImageSelector(imageFolderPath: _imageFolderPath),
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: const Color(0xFF1E202C),
+                                    title: const Text('이미지 선택', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    content: const Text('이미지를 가져올 방법을 선택하세요.', style: TextStyle(color: Colors.grey)),
+                                    actions: [
+                                      TextButton.icon(
+                                        icon: const Icon(Icons.camera_alt, color: Color(0xFF007A87)),
+                                        label: const Text('카메라', style: TextStyle(color: Colors.white)),
+                                        onPressed: () => Navigator.pop(context, ImageSource.camera),
+                                      ),
+                                      TextButton.icon(
+                                        icon: const Icon(Icons.photo_library, color: Color(0xFF007A87)),
+                                        label: const Text('갤러리', style: TextStyle(color: Colors.white)),
+                                        onPressed: () => Navigator.pop(context, ImageSource.gallery),
+                                      ),
+                                    ],
+                                  ),
                                 );
 
-                                if (selectedFilename != null) {
-                                  setStateDialog(() {
-                                    imageFilename = selectedFilename;
-                                  });
+                                if (source != null) {
+                                  final ImagePicker picker = ImagePicker();
+                                  final XFile? pickedFile = await picker.pickImage(source: source);
+                                  if (pickedFile != null) {
+                                    final Uint8List? croppedBytes = await Navigator.push<Uint8List>(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ImageCropScreen(file: pickedFile),
+                                      ),
+                                    );
+
+                                    if (croppedBytes != null) {
+                                      final menuName = nameController.text.trim().replaceAll('/', '_').replaceAll('.', '_');
+                                      final fileName = '$menuName.png';
+                                      if (!kIsWeb) {
+                                        final targetDir = _currentStoreImageFolderPath;
+                                        if (targetDir != null) {
+                                          final directory = Directory(targetDir);
+                                          if (!await directory.exists()) {
+                                            await directory.create(recursive: true);
+                                          }
+                                          final file = File('$targetDir/$fileName');
+                                          await file.writeAsBytes(croppedBytes);
+                                        }
+                                      }
+
+                                      setStateDialog(() {
+                                        imageFilename = fileName;
+                                      });
+                                    }
+                                  }
                                 }
                               },
                             ),
@@ -521,6 +607,7 @@ class _SettingsPageState extends State<SettingsPage> {
         _restaurantNameController.text = newRestaurantName;
         _categories = loadedCategories;
         _menuItems = loadedMenuItems;
+        _selectedCategory = loadedCategories.isNotEmpty ? loadedCategories.first : null;
       });
       await _saveSettings();
       widget.onUpdate(_categories, _menuItems);
@@ -639,6 +726,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _restaurantNameController.text = '';
           _categories = [];
           _menuItems = {};
+          _selectedCategory = null;
         });
         _saveSettings();
         widget.onUpdate(_categories, _menuItems);
@@ -834,22 +922,129 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
             ),
-            // Body Layout (Two Columns)
+            if (_restaurantName == '조이김밥')
+              Container(
+                width: double.infinity,
+                color: const Color(0xFFC0222B),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                child: Row(
+                  children: const [
+                    Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '기본 설정 매장 [조이김밥]은 카테고리/메뉴 추가, 수정, 삭제가 불가능합니다. 임의 편집을 원하시면 좌측 상단의 [매장 설정]을 통해 새 매장을 추가한 뒤 편집해주세요.',
+                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            // Body Layout (Two Columns: Left categories sidebar, Right menus details)
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Left Column (Sidebar cards - Basic settings only)
+                    // Left Column (Sidebar cards - Basic settings & Category Management)
                     SizedBox(
-                      width: 320,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Card 1: 기본 정보
-                            Container(
+                      width: 340,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Card 1: 기본 정보
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E202C),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      '기본 정보 설정',
+                                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                    ),
+                                    GestureDetector(
+                                      onTap: _showRestaurantSelectDialog,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: const [
+                                          Icon(Icons.edit, color: Color(0xFF007A87), size: 14),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            '매장 설정',
+                                            style: TextStyle(color: Color(0xFF007A87), fontSize: 14, fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF12131A),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.store, color: Color(0xFF007A87), size: 24),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              '매장 이름',
+                                              style: TextStyle(color: Colors.grey, fontSize: 11),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              _restaurantName,
+                                              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                TextField(
+                                  controller: _tableNumberController,
+                                  style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                                  decoration: InputDecoration(
+                                    labelText: '테이블 번호',
+                                    labelStyle: const TextStyle(color: Colors.grey),
+                                    prefixIcon: const Icon(Icons.tag, color: Color(0xFF007A87)),
+                                    filled: true,
+                                    fillColor: const Color(0xFF12131A),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderSide: const BorderSide(color: Color(0xFF2C2E3E)),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderSide: const BorderSide(color: Color(0xFF007A87)),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          // Card 2: 카테고리 관리
+                          Expanded(
+                            child: Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF1E202C),
@@ -862,86 +1057,164 @@ class _SettingsPageState extends State<SettingsPage> {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       const Text(
-                                        '기본 정보 설정',
+                                        '카테고리 관리',
                                         style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                                       ),
-                                      GestureDetector(
-                                        onTap: _showRestaurantSelectDialog,
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: const [
-                                            Icon(Icons.edit, color: Color(0xFF007A87), size: 14),
-                                            SizedBox(width: 4),
-                                            Text(
-                                              '매장 설정',
-                                              style: TextStyle(color: Color(0xFF007A87), fontSize: 14, fontWeight: FontWeight.bold),
-                                            ),
-                                          ],
-                                        ),
+                                      IconButton(
+                                        icon: Icon(Icons.add, color: _restaurantName == '조이김밥' ? Colors.grey : const Color(0xFF007A87), size: 20),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () {
+                                          if (_restaurantName == '조이김밥') {
+                                            showCustomDialog(
+                                              context: context,
+                                              title: '변경 불가',
+                                              content: '기본 설정 매장 [조이김밥]의 카테고리는 추가할 수 없습니다.',
+                                            );
+                                            return;
+                                          }
+                                          if (_restaurantName.isEmpty) {
+                                            showCustomDialog(
+                                              context: context,
+                                              title: '알림',
+                                              content: '음식점 이름을 먼저 설정해주세요.',
+                                            );
+                                          } else {
+                                            _addCategory();
+                                          }
+                                        },
+                                        tooltip: '카테고리 추가',
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 16),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF12131A),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.store, color: Color(0xFF007A87), size: 24),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              const Text(
-                                                '매장 이름',
-                                                style: TextStyle(color: Colors.grey, fontSize: 11),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                _restaurantName,
-                                                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                  const SizedBox(height: 4),
+                                  const Text(
+                                    '드래그하여 순서를 변경하고, 카테고리를 클릭하면 우측에 메뉴가 나타납니다.',
+                                    style: TextStyle(color: Colors.grey, fontSize: 11),
                                   ),
-                                  const SizedBox(height: 16),
-                                  TextField(
-                                    controller: _tableNumberController,
-                                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
-                                    decoration: InputDecoration(
-                                      labelText: '테이블 번호',
-                                      labelStyle: const TextStyle(color: Colors.grey),
-                                      prefixIcon: const Icon(Icons.tag, color: Color(0xFF007A87)),
-                                      filled: true,
-                                      fillColor: const Color(0xFF12131A),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderSide: const BorderSide(color: Color(0xFF2C2E3E)),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderSide: const BorderSide(color: Color(0xFF007A87)),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
+                                  const SizedBox(height: 12),
+                                  Expanded(
+                                    child: _categories.isEmpty
+                                        ? const Center(
+                                            child: Text(
+                                              '등록된 카테고리가 없습니다.',
+                                              style: TextStyle(color: Colors.grey, fontSize: 13),
+                                            ),
+                                          )
+                                        : ReorderableListView.builder(
+                                            itemCount: _categories.length,
+                                            onReorder: (oldIndex, newIndex) {
+                                              if (_restaurantName == '조이김밥') {
+                                                showCustomDialog(
+                                                  context: context,
+                                                  title: '변경 불가',
+                                                  content: '기본 설정 매장 [조이김밥]의 카테고리 순서는 변경할 수 없습니다.',
+                                                );
+                                                return;
+                                              }
+                                              if (_restaurantName.isEmpty) {
+                                                showCustomDialog(
+                                                  context: context,
+                                                  title: '알림',
+                                                  content: '음식점 이름을 먼저 설정해주세요.',
+                                                );
+                                                return;
+                                              }
+                                              setState(() {
+                                                if (newIndex > oldIndex) newIndex -= 1;
+                                                final String item = _categories.removeAt(oldIndex);
+                                                _categories.insert(newIndex, item);
+                                              });
+                                              widget.onUpdate(_categories, _menuItems);
+                                            },
+                                            itemBuilder: (context, index) {
+                                              final category = _categories[index];
+                                              final isSelected = category == _selectedCategory;
+
+                                              return Card(
+                                                key: ValueKey(category),
+                                                color: isSelected ? const Color(0xFF007A87) : const Color(0xFF222530),
+                                                margin: const EdgeInsets.symmetric(vertical: 4),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: ListTile(
+                                                  dense: true,
+                                                  contentPadding: const EdgeInsets.only(left: 12, right: 4),
+                                                  title: Text(
+                                                    category,
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                                      fontSize: 14,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                  onTap: () {
+                                                    setState(() {
+                                                      _selectedCategory = category;
+                                                    });
+                                                  },
+                                                  trailing: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      IconButton(
+                                                        icon: Icon(Icons.edit_outlined, color: _restaurantName == '조이김밥' ? Colors.grey : Colors.orange, size: 16),
+                                                        padding: EdgeInsets.zero,
+                                                        constraints: const BoxConstraints(),
+                                                        onPressed: () {
+                                                          if (_restaurantName == '조이김밥') {
+                                                            showCustomDialog(
+                                                              context: context,
+                                                              title: '변경 불가',
+                                                              content: '기본 설정 매장 [조이김밥]의 카테고리는 수정할 수 없습니다.',
+                                                            );
+                                                            return;
+                                                          }
+                                                          _renameCategory(index);
+                                                        },
+                                                        tooltip: '이름 변경',
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      IconButton(
+                                                        icon: Icon(Icons.delete_outline, color: _restaurantName == '조이김밥' ? Colors.grey : Colors.red, size: 16),
+                                                        padding: EdgeInsets.zero,
+                                                        constraints: const BoxConstraints(),
+                                                        onPressed: () {
+                                                          if (_restaurantName == '조이김밥') {
+                                                            showCustomDialog(
+                                                              context: context,
+                                                              title: '변경 불가',
+                                                              content: '기본 설정 매장 [조이김밥]의 카테고리는 삭제할 수 없습니다.',
+                                                            );
+                                                            return;
+                                                          }
+                                                          _deleteCategory(index);
+                                                        },
+                                                        tooltip: '삭제',
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      ReorderableDragStartListener(
+                                                        index: index,
+                                                        child: const Icon(Icons.menu, color: Colors.grey, size: 16),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
                                   ),
                                 ],
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 20),
-                    // Right Column (Category Reorder Management)
+                    // Right Column (Menu Items inside Selected Category)
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(20),
@@ -949,164 +1222,140 @@ class _SettingsPageState extends State<SettingsPage> {
                           color: const Color(0xFF1E202C),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  '카테고리 관리 (드래그 순서 변경)',
-                                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        child: _selectedCategory == null
+                            ? const Center(
+                                child: Text(
+                                  '카테고리를 먼저 추가하거나 선택해주세요.',
+                                  style: TextStyle(color: Colors.grey, fontSize: 16),
                                 ),
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    if (_restaurantName.isEmpty) {
-                                      showCustomDialog(
-                                        context: context,
-                                        title: '알림',
-                                        content: '음식점 이름을 먼저 설정해주세요.',
-                                      );
-                                    } else {
-                                      _addCategory();
-                                    }
-                                  },
-                                  icon: const Icon(Icons.add, color: Colors.white, size: 16),
-                                  label: const Text('카테고리 추가', style: TextStyle(color: Colors.white)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF007A87),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                    textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Expanded(
-                              child: _categories.isEmpty
-                                  ? const Center(
-                                      child: Text(
-                                        '등록된 카테고리가 없습니다.',
-                                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        '[$_selectedCategory] 메뉴 관리',
+                                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                                       ),
-                                    )
-                                  : ReorderableListView.builder(
-                                      itemCount: _categories.length,
-                                      onReorder: (oldIndex, newIndex) {
-                                        if (_restaurantName.isEmpty) {
-                                          showCustomDialog(
-                                            context: context,
-                                            title: '알림',
-                                            content: '음식점 이름을 먼저 설정해주세요.',
-                                          );
-                                          return;
-                                        }
-                                        setState(() {
-                                          if (newIndex > oldIndex) newIndex -= 1;
-                                          final String item = _categories.removeAt(oldIndex);
-                                          _categories.insert(newIndex, item);
-                                        });
-                                        widget.onUpdate(_categories, _menuItems);
-                                      },
-                                      itemBuilder: (context, index) {
-                                        final category = _categories[index];
-                                        final items = _menuItems[category] ?? [];
-                                        final currencyFormat = NumberFormat('#,##0', 'ko_KR');
-
-                                        return Card(
-                                          key: ValueKey(category),
-                                          color: const Color(0xFF222530),
-                                          margin: const EdgeInsets.symmetric(vertical: 6),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          clipBehavior: Clip.antiAlias,
-                                          child: Theme(
-                                            data: Theme.of(context).copyWith(
-                                              dividerColor: Colors.transparent,
-                                              unselectedWidgetColor: Colors.grey,
+                                      ElevatedButton.icon(
+                                        onPressed: () {
+                                          if (_restaurantName == '조이김밥') {
+                                            showCustomDialog(
+                                              context: context,
+                                              title: '변경 불가',
+                                              content: '기본 설정 매장 [조이김밥]에는 메뉴를 추가할 수 없습니다. 새 매장을 등록한 후 편집해주세요.',
+                                            );
+                                            return;
+                                          }
+                                          _showMenuFormDialog(_selectedCategory!);
+                                        },
+                                        icon: const Icon(Icons.add, color: Colors.white, size: 16),
+                                        label: const Text('메뉴 추가', style: TextStyle(color: Colors.white)),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: _restaurantName == '조이김밥' ? Colors.grey : const Color(0xFF007A87),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Expanded(
+                                    child: (_menuItems[_selectedCategory] == null || _menuItems[_selectedCategory]!.isEmpty)
+                                        ? const Center(
+                                            child: Text(
+                                              '이 카테고리에 등록된 메뉴가 없습니다.',
+                                              style: TextStyle(color: Colors.grey, fontSize: 16),
                                             ),
-                                            child: ExpansionTile(
-                                              iconColor: Colors.white,
-                                              collapsedIconColor: Colors.grey,
-                                              title: Text(
-                                                category,
-                                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                                              ),
-                                              trailing: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  IconButton(
-                                                    icon: const Icon(Icons.edit_outlined, color: Colors.orange, size: 20),
-                                                    onPressed: () => _renameCategory(index),
-                                                    tooltip: '이름 변경',
-                                                  ),
-                                                  IconButton(
-                                                    icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                                                    onPressed: () => _deleteCategory(index),
-                                                    tooltip: '삭제',
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  ReorderableDragStartListener(
-                                                    index: index,
-                                                    child: const Icon(Icons.menu, color: Colors.grey, size: 20),
-                                                  ),
-                                                ],
-                                              ),
-                                              children: [
-                                                ...items.asMap().entries.map((entry) {
-                                                  final itemIndex = entry.key;
-                                                  final item = entry.value;
-                                                  return Container(
-                                                    color: const Color(0xFF1E202C),
-                                                    child: ListTile(
-                                                      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-                                                      leading: SizedBox(
-                                                        width: 40,
-                                                        height: 40,
-                                                        child: ImageDisplay(
-                                                          imagePath: item.image,
-                                                          imageFolderPath: _imageFolderPath,
-                                                        ),
-                                                      ),
-                                                      title: Text(item.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-                                                      subtitle: Text('${currencyFormat.format(item.price)}원', style: const TextStyle(color: Colors.grey)),
-                                                      trailing: Row(
-                                                        mainAxisSize: MainAxisSize.min,
-                                                        children: [
-                                                          IconButton(
-                                                            icon: const Icon(Icons.edit_outlined, color: Colors.orange, size: 18),
-                                                            onPressed: () => _showMenuFormDialog(category, item: item, index: itemIndex),
-                                                            tooltip: '메뉴 수정',
-                                                          ),
-                                                          IconButton(
-                                                            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                                                            onPressed: () => _deleteMenuItem(category, itemIndex),
-                                                            tooltip: '메뉴 삭제',
-                                                          ),
-                                                        ],
-                                                      ),
+                                          )
+                                        : ListView.builder(
+                                            itemCount: _menuItems[_selectedCategory]!.length,
+                                            itemBuilder: (context, index) {
+                                              final item = _menuItems[_selectedCategory]![index];
+                                              final currencyFormat = NumberFormat('#,##0', 'ko_KR');
+
+                                              return Card(
+                                                color: const Color(0xFF222530),
+                                                margin: const EdgeInsets.symmetric(vertical: 6),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: ListTile(
+                                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                                  leading: SizedBox(
+                                                    width: 50,
+                                                    height: 50,
+                                                    child: ImageDisplay(
+                                                      imagePath: item.image,
+                                                      imageFolderPath: _currentStoreImageFolderPath,
                                                     ),
-                                                  );
-                                                }),
-                                                Container(
-                                                  color: const Color(0xFF1E202C),
-                                                  child: ListTile(
-                                                    contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                                                    leading: const Icon(Icons.add, color: Color(0xFF007A87)),
-                                                    title: const Text('메뉴 추가', style: TextStyle(color: Color(0xFF007A87), fontWeight: FontWeight.bold)),
-                                                    onTap: () => _showMenuFormDialog(category),
+                                                  ),
+                                                  title: Text(
+                                                    item.name,
+                                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                                  ),
+                                                  subtitle: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        '${currencyFormat.format(item.price)}원',
+                                                        style: const TextStyle(color: Colors.grey, fontSize: 14),
+                                                      ),
+                                                      if (item.description != null && item.description!.isNotEmpty)
+                                                        const SizedBox(height: 4),
+                                                      if (item.description != null && item.description!.isNotEmpty)
+                                                        Text(
+                                                          item.description!,
+                                                          style: const TextStyle(color: Colors.white60, fontSize: 12),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                    ],
+                                                  ),
+                                                  trailing: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      IconButton(
+                                                        icon: Icon(Icons.edit_outlined, color: _restaurantName == '조이김밥' ? Colors.grey : Colors.orange, size: 20),
+                                                        onPressed: () {
+                                                          if (_restaurantName == '조이김밥') {
+                                                            showCustomDialog(
+                                                              context: context,
+                                                              title: '변경 불가',
+                                                              content: '기본 설정 매장 [조이김밥]의 메뉴는 수정할 수 없습니다.',
+                                                            );
+                                                            return;
+                                                          }
+                                                          _showMenuFormDialog(_selectedCategory!, item: item, index: index);
+                                                        },
+                                                        tooltip: '메뉴 수정',
+                                                      ),
+                                                      IconButton(
+                                                        icon: Icon(Icons.delete_outline, color: _restaurantName == '조이김밥' ? Colors.grey : Colors.red, size: 20),
+                                                         onPressed: () {
+                                                           if (_restaurantName == '조이김밥') {
+                                                             showCustomDialog(
+                                                               context: context,
+                                                               title: '변경 불가',
+                                                               content: '기본 설정 매장 [조이김밥]의 메뉴는 삭제할 수 없습니다.',
+                                                             );
+                                                             return;
+                                                           }
+                                                           _deleteMenuItem(_selectedCategory!, index);
+                                                         },
+                                                        tooltip: '메뉴 삭제',
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
-                                              ],
-                                            ),
+                                              );
+                                            },
                                           ),
-                                        );
-                                      },
-                                    ),
-                            ),
-                          ],
-                        ),
+                                  ),
+                                ],
+                              ),
                       ),
                     ),
                   ],

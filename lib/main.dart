@@ -130,6 +130,47 @@ class _KioskHomePageState extends State<KioskHomePage> {
       if (_restaurantName.isEmpty) _restaurantName = '조이김밥';
       _imageFolderPath = prefs.getString('imageFolderPath');
     });
+
+    if (_imageFolderPath == null || _imageFolderPath!.isEmpty) {
+      if (kIsWeb) {
+        _imageFolderPath = 'web_images';
+        await prefs.setString('imageFolderPath', _imageFolderPath!);
+      } else {
+        String defaultPath;
+        if (Platform.isAndroid) {
+          defaultPath = '/storage/emulated/0/table_order';
+        } else {
+          final docDir = await getApplicationDocumentsDirectory();
+          defaultPath = '${docDir.path}/table_order';
+        }
+
+        try {
+          final directory = Directory(defaultPath);
+          if (!await directory.exists()) {
+            await directory.create(recursive: true);
+          }
+        } catch (e) {
+          // Ignored
+        }
+
+        await prefs.setString('imageFolderPath', defaultPath);
+        setState(() {
+          _imageFolderPath = defaultPath;
+        });
+      }
+    }
+
+    if (!kIsWeb && _imageFolderPath != null && _imageFolderPath!.isNotEmpty) {
+      try {
+        final restFolder = Directory('$_imageFolderPath/$_restaurantName');
+        if (!await restFolder.exists()) {
+          await restFolder.create(recursive: true);
+        }
+      } catch (e) {
+        // Ignored
+      }
+    }
+
     await prefs.setString('restaurantName', _restaurantName);
     await prefs.setString('tableNumber', _tableNumber);
   }
@@ -344,7 +385,9 @@ class _KioskHomePageState extends State<KioskHomePage> {
             builder: (context) => OrderCompletedPage(
               tableNumber: _tableNumber,
               orderedItems: orderedItems,
-              imageFolderPath: _imageFolderPath,
+              imageFolderPath: _imageFolderPath != null && _imageFolderPath!.isNotEmpty
+                  ? '$_imageFolderPath/$_restaurantName'
+                  : null,
             ),
           ),
         );
@@ -1314,7 +1357,9 @@ class _KioskHomePageState extends State<KioskHomePage> {
                                               Expanded(
                                                 child: MenuGrid(
                                                   items: _menuItems[name] ?? [],
-                                                  imageFolderPath: _imageFolderPath,
+                                                  imageFolderPath: _imageFolderPath != null && _imageFolderPath!.isNotEmpty
+                                                      ? '$_imageFolderPath/$_restaurantName'
+                                                      : null,
                                                 ),
                                               ),
                                             ],

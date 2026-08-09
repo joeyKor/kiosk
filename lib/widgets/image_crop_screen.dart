@@ -1,13 +1,13 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:kiosk/widgets/custom_dialog.dart';
 
 class ImageCropScreen extends StatefulWidget {
-  final String imagePath;
+  final XFile file;
 
-  const ImageCropScreen({super.key, required this.imagePath});
+  const ImageCropScreen({super.key, required this.file});
 
   @override
   State<ImageCropScreen> createState() => _ImageCropScreenState();
@@ -38,8 +38,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
 
   Future<void> _loadImage() async {
     try {
-      final file = File(widget.imagePath);
-      final bytes = await file.readAsBytes();
+      final bytes = await widget.file.readAsBytes();
       final codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
       if (mounted) {
@@ -71,9 +70,9 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
     );
 
     try {
-      // 1:1 Crop box target dimensions (square in center of screen)
-      const double targetWidth = 320.0;
-      const double targetHeight = 320.0;
+      // 4:3 Crop box target dimensions (center of screen)
+      const double targetWidth = 360.0;
+      const double targetHeight = 270.0;
 
       // Current transformation matrix
       final Matrix4 transform = _transformationController.value;
@@ -102,7 +101,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
       final int finalW = cropW.clamp(1.0, (_uiImage!.width - finalX).toDouble()).round();
       final int finalH = cropH.clamp(1.0, (_uiImage!.height - finalY).toDouble()).round();
 
-      // Resize cropped image to optimal menu thumbnail resolution (max 400x400 px)
+      // Resize cropped image to optimal menu resolution (max 400x300 px)
       // to keep Base64 payload small (~50KB) and strictly respect Firestore's 1MB document size limit.
       const double maxDim = 400.0;
       double outW = finalW.toDouble();
@@ -154,13 +153,14 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const double targetBoxSize = 320.0;
+    const double targetBoxW = 360.0;
+    const double targetBoxH = 270.0;
 
     return Scaffold(
       backgroundColor: const Color(0xFF151515),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E2229),
-        title: const Text('이미지 편집 (1:1 비율)', style: TextStyle(color: Colors.white, fontSize: 18)),
+        title: const Text('이미지 편집 (4:3 비율)', style: TextStyle(color: Colors.white, fontSize: 18)),
         actions: [
           TextButton.icon(
             icon: const Icon(Icons.check, color: Colors.white),
@@ -177,29 +177,35 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                 final double screenW = constraints.maxWidth;
                 final double screenH = constraints.maxHeight;
 
-                // Fit image nicely into screen area
-                final double imgAspect = _uiImage!.width / _uiImage!.height;
-                final double containerAspect = screenW / screenH;
+                if (_displayW == 0 && _displayH == 0) {
+                  // Fit image nicely into screen area
+                  final double imgAspect = _uiImage!.width / _uiImage!.height;
+                  final double containerAspect = screenW / screenH;
 
-                if (imgAspect > containerAspect) {
-                  _displayW = screenW;
-                  _displayH = screenW / imgAspect;
-                } else {
-                  _displayH = screenH;
-                  _displayW = screenH * imgAspect;
+                  if (imgAspect > containerAspect) {
+                    _displayW = screenW;
+                    _displayH = screenW / imgAspect;
+                  } else {
+                    _displayH = screenH;
+                    _displayW = screenH * imgAspect;
+                  }
+
+                  final double initialTx = (targetBoxW - _displayW) / 2;
+                  final double initialTy = (targetBoxH - _displayH) / 2;
+                  _transformationController.value = Matrix4.identity()..translate(initialTx, initialTy);
                 }
 
-                // Center crop square overlay
-                final double overlayLeft = (screenW - targetBoxSize) / 2;
-                final double overlayTop = (screenH - targetBoxSize) / 2;
+                // Center crop overlay
+                final double overlayLeft = (screenW - targetBoxW) / 2;
+                final double overlayTop = (screenH - targetBoxH) / 2;
 
                 return Stack(
                   children: [
                     // Interactive image layer
                     Center(
                       child: SizedBox(
-                        width: targetBoxSize,
-                        height: targetBoxSize,
+                        width: targetBoxW,
+                        height: targetBoxH,
                         child: ClipRect(
                           child: OverflowBox(
                             alignment: Alignment.center,
@@ -226,7 +232,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                       ),
                     ),
 
-                    // Mask Layer with cutout square
+                    // Mask Layer with cutout rectangle
                     IgnorePointer(
                       child: Stack(
                         children: [
@@ -243,7 +249,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                             bottom: 0,
                             left: 0,
                             right: 0,
-                            height: screenH - overlayTop - targetBoxSize,
+                            height: screenH - overlayTop - targetBoxH,
                             child: Container(color: Colors.black.withOpacity(0.6)),
                           ),
                           // Left dark area
@@ -251,23 +257,23 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                             top: overlayTop,
                             left: 0,
                             width: overlayLeft,
-                            height: targetBoxSize,
+                            height: targetBoxH,
                             child: Container(color: Colors.black.withOpacity(0.6)),
                           ),
                           // Right dark area
                           Positioned(
                             top: overlayTop,
                             right: 0,
-                            width: screenW - overlayLeft - targetBoxSize,
-                            height: targetBoxSize,
+                            width: screenW - overlayLeft - targetBoxW,
+                            height: targetBoxH,
                             child: Container(color: Colors.black.withOpacity(0.6)),
                           ),
-                          // Clear cutout square border
+                          // Clear cutout rectangle border
                           Positioned(
                             left: overlayLeft,
                             top: overlayTop,
-                            width: targetBoxSize,
-                            height: targetBoxSize,
+                            width: targetBoxW,
+                            height: targetBoxH,
                             child: Container(
                               decoration: BoxDecoration(
                                 border: Border.all(color: const Color(0xFF007A87), width: 2),

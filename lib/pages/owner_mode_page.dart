@@ -8,6 +8,7 @@ import 'package:kiosk/pages/settings_page.dart';
 import 'package:kiosk/pages/program_settings_page.dart';
 import 'package:kiosk/models/menu_item.dart';
 import 'package:kiosk/widgets/custom_dialog.dart';
+import 'package:kiosk/widgets/pin_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class OwnerModePage extends StatefulWidget {
@@ -278,18 +279,25 @@ class _OwnerModePageState extends State<OwnerModePage>
                       label: '가게 수정',
                       isActive: false,
                       onTap: () async {
-                        await Navigator.push(
+                        final authenticated = await StorePinDialog.show(
                           context,
-                          MaterialPageRoute(
-                            builder: (context) => SettingsPage(
-                              categories: widget.categories,
-                              menuItems: widget.menuItems,
-                              onUpdate: widget.onUpdate,
-                              imageFolderPath: _imageFolderPathState,
-                            ),
-                          ),
+                          restaurantName: _restaurantNameState,
+                          actionTitle: '가게 수정',
                         );
-                        await _loadSettings();
+                        if (authenticated) {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SettingsPage(
+                                categories: widget.categories,
+                                menuItems: widget.menuItems,
+                                onUpdate: widget.onUpdate,
+                                imageFolderPath: _imageFolderPathState,
+                              ),
+                            ),
+                          );
+                          await _loadSettings();
+                        }
                       },
                       color: const Color(0xFF2C2E3E),
                     ),
@@ -299,13 +307,20 @@ class _OwnerModePageState extends State<OwnerModePage>
                       label: '프로그램 설정 변경',
                       isActive: false,
                       onTap: () async {
-                        await Navigator.push(
+                        final authenticated = await StorePinDialog.show(
                           context,
-                          MaterialPageRoute(
-                            builder: (context) => const ProgramSettingsPage(),
-                          ),
+                          restaurantName: _restaurantNameState,
+                          actionTitle: '프로그램 설정 변경',
                         );
-                        await _loadSettings();
+                        if (authenticated) {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ProgramSettingsPage(),
+                            ),
+                          );
+                          await _loadSettings();
+                        }
                       },
                       color: const Color(0xFF2C2E3E),
                     ),
