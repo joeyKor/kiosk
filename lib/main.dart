@@ -1099,7 +1099,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
             child: Container(
               width: 66,
               height: 66,
-              margin: const EdgeInsets.only(bottom: 24),
+              margin: const EdgeInsets.only(bottom: 12),
               decoration: const BoxDecoration(
                 color: Color(0xFF007A87),
                 shape: BoxShape.circle,
@@ -1117,6 +1117,15 @@ class _KioskHomePageState extends State<KioskHomePage> {
               ),
             ),
           ),
+          const Text(
+            'ver 3.14',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 16),
         ],
       ),
     );
