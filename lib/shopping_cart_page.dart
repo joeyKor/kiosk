@@ -331,7 +331,22 @@ class PayPaymentDialogState extends State<PayPaymentDialog> {
   void initState() {
     super.initState();
     _accountController.addListener(() {
-      if (!_isLoading && _accountController.text.length == 13) {
+      String text = _accountController.text.trim();
+      
+      // Convert Korean keyboard input mode prefixes
+      for (final korPrefix in ["ㅔ묘", "ㅖ묘", "ㅔ됴", "ㅖ됴"]) {
+        if (text.startsWith(korPrefix)) {
+          text = "pay" + text.substring(korPrefix.length);
+          _accountController.value = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: text.length),
+          );
+          break;
+        }
+      }
+
+      // Automatically trigger payment once the input starts with pay and has at least 16 characters
+      if (!_isLoading && text.startsWith("pay") && text.length >= 16) {
         _processPayment();
       }
     });
@@ -367,13 +382,43 @@ class PayPaymentDialogState extends State<PayPaymentDialog> {
     await Future.delayed(const Duration(seconds: 2));
 
     try {
-      final decryptedAccountId = simpleDecrypt(_accountController.text);
+      String rawInput = _accountController.text.trim();
+      for (final korPrefix in ["ㅔ묘", "ㅖ묘", "ㅔ됴", "ㅖ됴"]) {
+        if (rawInput.startsWith(korPrefix)) {
+          rawInput = "pay" + rawInput.substring(korPrefix.length);
+          break;
+        }
+      }
+      
+      String accountCode = rawInput;
+      if (accountCode.startsWith("pay")) {
+        accountCode = accountCode.substring(3);
+      }
+
+      final decryptedAccountId = simpleDecrypt(accountCode);
       final amountToWithdraw = widget.totalPrice;
+
+      // Normalize candidate formats exactly like du_mart (hyphens, suffix, etc.)
+      final candidates = [decryptedAccountId];
+      final stripped = decryptedAccountId.replaceAll(RegExp(r'[^0-9]'), '');
+      if (stripped.length == 13) {
+        candidates.add('${stripped.substring(0, 3)}-${stripped.substring(3, 7)}-${stripped.substring(7, 11)}-${stripped.substring(11)}');
+      } else if (stripped.length == 11) {
+        candidates.add('${stripped.substring(0, 3)}-${stripped.substring(3, 7)}-${stripped.substring(7)}-11');
+      }
+      if (decryptedAccountId.length == 13 && decryptedAccountId.split('-').length == 3) {
+        candidates.add('$decryptedAccountId-11');
+      }
+      
+      final uniqueCandidates = candidates.toSet().toList();
 
       final accountsRef = FirebaseFirestore.instance
           .collectionGroup('accounts')
-          .where('accountNumber', isEqualTo: decryptedAccountId);
+          .where('accountNumber', whereIn: uniqueCandidates);
       final accountDocs = await accountsRef.get();
+      if (accountDocs.docs.isEmpty) {
+        throw Exception("계좌를 찾을 수 없습니다.");
+      }
       final targetAccountRef = accountDocs.docs.first.reference;
 
       await FirebaseFirestore.instance.runTransaction((transaction) async {
