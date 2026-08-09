@@ -74,7 +74,7 @@ class MenuGrid extends StatelessWidget {
                 children: [
                   // Image Section with optional BEST/NEW badges
                   Expanded(
-                    flex: 5,
+                    flex: 6,
                     child: Stack(
                       children: [
                         Positioned.fill(
@@ -153,9 +153,9 @@ class MenuGrid extends StatelessWidget {
                   ),
                   // Details Section
                   Expanded(
-                    flex: 4,
+                    flex: 3,
                     child: Padding(
-                      padding: const EdgeInsets.all(12.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -163,7 +163,7 @@ class MenuGrid extends StatelessWidget {
                             translatedName,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 18,
+                              fontSize: 21,
                               color: Colors.black87,
                             ),
                             maxLines: 1,
@@ -188,13 +188,13 @@ class MenuGrid extends StatelessWidget {
                               Text(
                                 '${currencyFormat.format(item.price)}원',
                                 style: const TextStyle(
-                                  fontSize: 18,
+                                  fontSize: 21,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.black87,
                                 ),
                               ),
                               SizedBox(
-                                height: 36,
+                                height: 40,
                                 child: Builder(
                                   builder: (btnContext) {
                                     return ElevatedButton(
@@ -222,7 +222,7 @@ class MenuGrid extends StatelessWidget {
                                             ? (langCode == 'ko' ? '품절' : 'Sold Out')
                                             : (langCode == 'ko' ? '담기' : 'Add'),
                                         style: const TextStyle(
-                                          fontSize: 14,
+                                          fontSize: 16,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
