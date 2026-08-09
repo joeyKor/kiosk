@@ -1285,7 +1285,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
             ),
           ),
           const Text(
-            'ver 3.15',
+            'ver 3.16',
             style: TextStyle(
               color: Colors.grey,
               fontSize: 11,
@@ -1342,7 +1342,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
           IconButton(
             icon: const Icon(Icons.chevron_left, color: Colors.grey),
             onPressed: () {
-              if (tabController != null && tabController.index > 0) {
+              if (tabController.index > 0) {
                 tabController.animateTo(tabController.index - 1);
               }
             },
@@ -1379,8 +1379,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
           IconButton(
             icon: const Icon(Icons.chevron_right, color: Colors.grey),
             onPressed: () {
-              if (tabController != null &&
-                  tabController.index < _categories.length - 1) {
+              if (tabController.index < _categories.length - 1) {
                 tabController.animateTo(tabController.index + 1);
               }
             },

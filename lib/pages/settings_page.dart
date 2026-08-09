@@ -1021,7 +1021,16 @@ class _SettingsPageState extends State<SettingsPage> {
     if (proceed != true) return;
 
     final targetPath = await FilePicker.platform.getDirectoryPath();
-    if (targetPath == null) return;
+    if (targetPath == null || targetPath.isEmpty) return;
+
+    if (targetPath == '/' || targetPath == '//' || targetPath.startsWith('//') || targetPath.startsWith('\\\\')) {
+      showCustomDialog(
+        context: context,
+        title: '경로 오류',
+        content: '시스템 루트 디렉토리(/)나 빈 경로에는 저장할 수 없습니다. 쓰기 가능한 USB 드라이브 내부의 폴더나 다른 하위 폴더를 선택해 주세요.',
+      );
+      return;
+    }
 
     showDialog(
       context: context,
@@ -1032,7 +1041,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     try {
-      final exportDestPath = '$targetPath/$_restaurantName';
+      final exportDestPath = '$targetPath/$_restaurantName'.replaceAll('//', '/');
       final targetDir = Directory(exportDestPath);
       if (!await targetDir.exists()) {
         await targetDir.create(recursive: true);
@@ -1057,10 +1066,17 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     } catch (e) {
       if (mounted) Navigator.pop(context);
+      
+      String errorContent = '파일을 내보내는 중 오류가 발생했습니다: $e';
+      final errStr = e.toString();
+      if (errStr.contains('Read-only') || errStr.contains('errno = 30') || errStr.contains('permission') || errStr.contains('errno = 13')) {
+        errorContent = '선택하신 저장 공간이 읽기 전용(Read-only) 상태이거나 권한이 부족하여 쓸 수 없습니다. 쓰기 권한이 허용된 다른 USB 폴더나 경로를 선택해 주세요.';
+      }
+      
       showCustomDialog(
         context: context,
         title: '오류',
-        content: '파일을 내보내는 중 오류가 발생했습니다: $e',
+        content: errorContent,
       );
     }
   }
@@ -1101,7 +1117,16 @@ class _SettingsPageState extends State<SettingsPage> {
     if (proceed != true) return;
 
     final sourcePath = await FilePicker.platform.getDirectoryPath();
-    if (sourcePath == null) return;
+    if (sourcePath == null || sourcePath.isEmpty) return;
+
+    if (sourcePath == '/' || sourcePath == '//' || sourcePath.startsWith('//') || sourcePath.startsWith('\\\\')) {
+      showCustomDialog(
+        context: context,
+        title: '경로 오류',
+        content: '시스템 루트 디렉토리(/)는 가져오기 경로로 사용할 수 없습니다. 이미지 파일들이 들어있는 올바른 폴더를 선택해 주세요.',
+      );
+      return;
+    }
 
     final sourceDir = Directory(sourcePath);
     if (!await sourceDir.exists()) {
@@ -1153,10 +1178,17 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     } catch (e) {
       if (mounted) Navigator.pop(context);
+      
+      String errorContent = '파일을 가져오는 중 오류가 발생했습니다: $e';
+      final errStr = e.toString();
+      if (errStr.contains('Read-only') || errStr.contains('errno = 30') || errStr.contains('permission') || errStr.contains('errno = 13')) {
+        errorContent = '지정된 가져오기/쓰기 경로에 권한이 부족하거나 대상 폴더가 읽기 전용 상태입니다. 매장 설정 폴더 쓰기 권한이 허용되어 있는지 확인해 주세요.';
+      }
+      
       showCustomDialog(
         context: context,
         title: '오류',
-        content: '파일을 가져오는 중 오류가 발생했습니다: $e',
+        content: errorContent,
       );
     }
   }
