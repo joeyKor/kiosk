@@ -605,6 +605,8 @@ class _SettingsPageState extends State<SettingsPage> {
                                   }
                                 });
 
+                                PaintingBinding.instance.imageCache.clear();
+                                PaintingBinding.instance.imageCache.clearLiveImages();
                                 widget.onUpdate(_restaurantName, _categories, _menuItems);
                                 Navigator.pop(context);
                               },
