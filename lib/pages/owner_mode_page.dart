@@ -1727,18 +1727,7 @@ class _OwnerModePageState extends State<OwnerModePage>
                   },
                 ),
                 const SizedBox(height: 12),
-                // Tap to simulate payment completion button
-                TextButton(
-                  onPressed: () async {
-                    String testCode = scannerController.text.trim();
-                    if (testCode.isEmpty) {
-                      testCode = "pay0102792989111"; // Default test account
-                    }
-                    Navigator.pop(context);
-                    await _handleOwnerPayPayment(summary, testCode);
-                  },
-                  child: const Text('스캔 테스트 (결제 승인)', style: TextStyle(color: Color(0xFF00A896), fontSize: 13)),
-                ),
+
               ],
             ),
           ),

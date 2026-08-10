@@ -206,6 +206,113 @@ class _ProgramSettingsPageState extends State<ProgramSettingsPage> {
     }
   }
 
+  void _showChangelogDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E202C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.history_edu, color: Color(0xFF007A87)),
+            SizedBox(width: 10),
+            Text(
+              '업데이트 히스토리',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 450,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildChangelogItem(
+                  version: 'v3.19',
+                  changes: [
+                    '직원 호출 알림창 개선 (스낵바에서 2초 뒤 자동 닫히는 커스텀 다이얼로그로 변경)',
+                    '태블릿 기기 USB 이미지 파일 내보내기/가져오기 시 가상 루트 경로 검증 에러 해결',
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildChangelogItem(
+                  version: 'v3.18',
+                  changes: [
+                    '주문 내역 페이지를 음식 사진 카드가 있는 시각적인 슬라이드 형태로 디자인 대폭 개선',
+                    '현금 결제 및 조이페이 결제 시 정밀 영수증 팝업 양식 연동',
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildChangelogItem(
+                  version: 'v3.17',
+                  changes: [
+                    '조이페이 Firestore 잔액 차감 기능 및 실시간 승인 트랜잭션 연동',
+                    '화면 하단 플로팅 버튼과 메뉴 그리드 간의 레이아웃 겹침 오류 해결',
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildChangelogItem(
+                  version: 'v3.10',
+                  changes: [
+                    '다국어 번역(영어, 중국어, 일어) 지원 탑재',
+                    '태블릿 무인 주문 키오스크 초기 버전 안정화 릴리즈',
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인', style: TextStyle(color: Color(0xFF007A87), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChangelogItem({required String version, required List<String> changes}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          version,
+          style: const TextStyle(color: Color(0xFF007A87), fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF12131A),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: changes.map((change) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('• ', style: TextStyle(color: Color(0xFF007A87), fontWeight: FontWeight.bold)),
+                  Expanded(
+                    child: Text(
+                      change,
+                      style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.3),
+                    ),
+                  ),
+                ],
+              ),
+            )).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -259,154 +366,262 @@ class _ProgramSettingsPageState extends State<ProgramSettingsPage> {
             // Body Settings Columns
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
                 child: Center(
                   child: Container(
-                    constraints: const BoxConstraints(maxWidth: 600),
-                    child: Column(
+                    constraints: const BoxConstraints(maxWidth: 1000),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Card 1: 이미지 폴더 설정
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E202C),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                        // Left Column (Version & Security)
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                '이미지 폴더 설정',
-                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 12),
+                              // Card 1: 시스템 정보 및 버전
                               Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
+                                padding: const EdgeInsets.all(20),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF12131A),
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: const Color(0xFF1E202C),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFF2C2E3E)),
                                 ),
-                                child: Text(
-                                  _imageFolderPath ?? '설정되지 않음',
-                                  style: const TextStyle(color: Colors.grey, fontSize: 13),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: const [
+                                        Icon(Icons.info_outline, color: Color(0xFF007A87), size: 22),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          '시스템 버전 정보',
+                                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF12131A),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: const [
+                                          Text(
+                                            '현재 빌드 버전',
+                                            style: TextStyle(color: Colors.grey, fontSize: 11),
+                                          ),
+                                          SizedBox(height: 4),
+                                          Text(
+                                            'ver 3.19',
+                                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                                          ),
+                                          SizedBox(height: 12),
+                                          Text(
+                                            '배포 상태: 최신 빌드 실행 중',
+                                            style: TextStyle(color: Color(0xFF007A87), fontSize: 12, fontWeight: FontWeight.w500),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: _showChangelogDialog,
+                                        icon: const Icon(Icons.history, color: Colors.white, size: 18),
+                                        label: const Text('업데이트 히스토리 보기', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF2C2E3E),
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  icon: const Icon(Icons.folder_open, color: Colors.white),
-                                  label: const Text('폴더 변경', style: TextStyle(color: Colors.white)),
-                                  onPressed: _pickImageFolder,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF007A87),
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                  ),
+                              const SizedBox(height: 20),
+                              // Card 2: 보안 설정
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1E202C),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFF2C2E3E)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: const [
+                                        Icon(Icons.security, color: Color(0xFF2CA05A), size: 22),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          '보안 설정',
+                                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    const Text(
+                                      '관리자 모드 진입 시 입력하는 PIN 번호를 변경 및 관리합니다.',
+                                      style: TextStyle(color: Colors.grey, fontSize: 12, height: 1.4),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: _changePin,
+                                        icon: const Icon(Icons.lock_outline, color: Colors.white, size: 18),
+                                        label: const Text('관리자 PIN 번호 변경', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF2CA05A),
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        // Card 2: 보안 및 데이터
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E202C),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                        const SizedBox(width: 24),
+                        // Right Column (Path & Data)
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                '보안 및 데이터',
-                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 16),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: _changePin,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF2CA05A),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                    textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                  ),
-                                  child: const Text('PIN 번호 변경'),
+                              // Card 3: 저장 경로 설정
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1E202C),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFF2C2E3E)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: const [
+                                        Icon(Icons.folder_open, color: Color(0xFFE5B13A), size: 22),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          '메뉴 이미지 저장 경로',
+                                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF12131A),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        _imageFolderPath ?? '설정되지 않음',
+                                        style: const TextStyle(color: Colors.grey, fontSize: 13, fontFamily: 'monospace'),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        icon: const Icon(Icons.edit_road, color: Colors.white, size: 18),
+                                        label: const Text('저장 폴더 변경', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                        onPressed: _pickImageFolder,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF007A87),
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: () => _deleteOrders(false),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFE55A44),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                    textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                  ),
-                                  child: const Text('어제까지의 주문내역 삭제'),
+                              const SizedBox(height: 20),
+                              // Card 4: 데이터 관리 및 복원
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1E202C),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFF2C2E3E)),
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: () => _deleteOrders(true),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFC0222B),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                    textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                  ),
-                                  child: const Text('모든 주문 내역 삭제'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Card 3: 데모 매장 복원
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E202C),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                '데모 매장 복원',
-                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                '기본 데모 매장인 [조이김밥]의 메뉴 데이터를 최초 설치 상태로 다시 복원합니다.',
-                                style: TextStyle(color: Colors.grey, fontSize: 12),
-                              ),
-                              const SizedBox(height: 16),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: _restoreDefaultJoyGimbap,
-                                  icon: const Icon(Icons.settings_backup_restore, color: Colors.white, size: 16),
-                                  label: const Text('조이김밥 기본 메뉴 복원', style: TextStyle(color: Colors.white)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF007A87),
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                    textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: const [
+                                        Icon(Icons.storage, color: Color(0xFFE55A44), size: 22),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          '데이터 관리 및 초기화',
+                                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () => _deleteOrders(false),
+                                        icon: const Icon(Icons.cleaning_services, color: Colors.white, size: 18),
+                                        label: const Text('어제까지의 주문/호출 내역 삭제', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFFE55A44),
+                                          padding: const EdgeInsets.symmetric(vertical: 13),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () => _deleteOrders(true),
+                                        icon: const Icon(Icons.delete_forever, color: Colors.white, size: 18),
+                                        label: const Text('모든 주문 및 호출 내역 삭제', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFFC0222B),
+                                          padding: const EdgeInsets.symmetric(vertical: 13),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    const Divider(color: Color(0xFF2C2E3E), thickness: 1),
+                                    const SizedBox(height: 12),
+                                    const Text(
+                                      '기본 제공되는 조이김밥 데모 메뉴 데이터를 설치 초기 상태로 다시 되돌립니다.',
+                                      style: TextStyle(color: Colors.grey, fontSize: 11, height: 1.4),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: _restoreDefaultJoyGimbap,
+                                        icon: const Icon(Icons.restore, color: Colors.white, size: 18),
+                                        label: const Text('조이김밥 데모 데이터 복원', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF007A87),
+                                          padding: const EdgeInsets.symmetric(vertical: 13),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],

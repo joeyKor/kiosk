@@ -1023,14 +1023,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final targetPath = await FilePicker.platform.getDirectoryPath();
     if (targetPath == null || targetPath.isEmpty) return;
 
-    if (targetPath == '/' || targetPath == '//' || targetPath.startsWith('//') || targetPath.startsWith('\\\\')) {
-      showCustomDialog(
-        context: context,
-        title: '경로 오류',
-        content: '시스템 루트 디렉토리(/)나 빈 경로에는 저장할 수 없습니다. 쓰기 가능한 USB 드라이브 내부의 폴더나 다른 하위 폴더를 선택해 주세요.',
-      );
-      return;
-    }
+
 
     showDialog(
       context: context,
@@ -1119,14 +1112,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final sourcePath = await FilePicker.platform.getDirectoryPath();
     if (sourcePath == null || sourcePath.isEmpty) return;
 
-    if (sourcePath == '/' || sourcePath == '//' || sourcePath.startsWith('//') || sourcePath.startsWith('\\\\')) {
-      showCustomDialog(
-        context: context,
-        title: '경로 오류',
-        content: '시스템 루트 디렉토리(/)는 가져오기 경로로 사용할 수 없습니다. 이미지 파일들이 들어있는 올바른 폴더를 선택해 주세요.',
-      );
-      return;
-    }
+
 
     final sourceDir = Directory(sourcePath);
     if (!await sourceDir.exists()) {

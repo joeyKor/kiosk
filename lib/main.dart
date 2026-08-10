@@ -1247,7 +1247,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
                           ),
                           child: Container(
                             width: 320,
-                            padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 30,
+                              horizontal: 20,
+                            ),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -1323,7 +1326,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
             ),
           ),
           const Text(
-            'ver 3.17',
+            'ver 3.19',
             style: TextStyle(
               color: Colors.grey,
               fontSize: 11,
@@ -1562,159 +1565,159 @@ class _KioskHomePageState extends State<KioskHomePage> {
           onPointerDown: (_) => _resetMenuTimer(),
           onPointerMove: (_) => _resetMenuTimer(),
           child: Row(
-          children: [
-            // Left Sidebar
-            _buildLeftSidebar(context),
-            // Main Content Area & Slide-out Cart Panel
-            Expanded(
-              child: SafeArea(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : Stack(
-                        children: [
-                          // Main content
-                          Positioned.fill(
-                            child: _activeSidebarTab == 'fun'
-                                ? RouletteWidget(langCode: _langCode)
-                                : _activeSidebarTab == 'lang'
-                                ? _buildLanguageSelectionScreen(context)
-                                : Stack(
-                                    children: [
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          // Top Category Tab Bar
-                                          Builder(
-                                            builder: (tabContext) =>
-                                                _buildCategoryTabBar(
-                                                  tabContext,
-                                                ),
-                                          ),
-                                          // Section Title & Menu Grid
-                                          Expanded(
-                                            child: _categories.isEmpty
-                                                ? Center(
-                                                    child: Text(
-                                                      LocalizationService
-                                                          .instance
-                                                          .translate(
-                                                            'empty_menu',
-                                                            _langCode,
-                                                          ),
-                                                    ),
-                                                  )
-                                                : TabBarView(
-                                                    children: _categories.map((
-                                                      String name,
-                                                    ) {
-                                                      return Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          Padding(
-                                                            padding:
-                                                                const EdgeInsets.only(
-                                                                  left: 20.0,
-                                                                  top: 16.0,
-                                                                  bottom: 8.0,
-                                                                ),
-                                                            child: Text(
-                                                              LocalizationService
-                                                                  .instance
-                                                                  .translateCategory(
-                                                                    name,
-                                                                    _langCode,
+            children: [
+              // Left Sidebar
+              _buildLeftSidebar(context),
+              // Main Content Area & Slide-out Cart Panel
+              Expanded(
+                child: SafeArea(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : Stack(
+                          children: [
+                            // Main content
+                            Positioned.fill(
+                              child: _activeSidebarTab == 'fun'
+                                  ? RouletteWidget(langCode: _langCode)
+                                  : _activeSidebarTab == 'lang'
+                                  ? _buildLanguageSelectionScreen(context)
+                                  : Stack(
+                                      children: [
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            // Top Category Tab Bar
+                                            Builder(
+                                              builder: (tabContext) =>
+                                                  _buildCategoryTabBar(
+                                                    tabContext,
+                                                  ),
+                                            ),
+                                            // Section Title & Menu Grid
+                                            Expanded(
+                                              child: _categories.isEmpty
+                                                  ? Center(
+                                                      child: Text(
+                                                        LocalizationService
+                                                            .instance
+                                                            .translate(
+                                                              'empty_menu',
+                                                              _langCode,
+                                                            ),
+                                                      ),
+                                                    )
+                                                  : TabBarView(
+                                                      children: _categories.map((
+                                                        String name,
+                                                      ) {
+                                                        return Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets.only(
+                                                                    left: 20.0,
+                                                                    top: 16.0,
+                                                                    bottom: 8.0,
                                                                   ),
-                                                              style: const TextStyle(
-                                                                fontSize: 22,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                                color: Color(
-                                                                  0xFF1E2022,
+                                                              child: Text(
+                                                                LocalizationService
+                                                                    .instance
+                                                                    .translateCategory(
+                                                                      name,
+                                                                      _langCode,
+                                                                    ),
+                                                                style: const TextStyle(
+                                                                  fontSize: 22,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  color: Color(
+                                                                    0xFF1E2022,
+                                                                  ),
                                                                 ),
                                                               ),
                                                             ),
-                                                          ),
-                                                          Expanded(
-                                                            child: MenuGrid(
-                                                              items:
-                                                                  _menuItems[name] ??
-                                                                  [],
-                                                              imageFolderPath:
-                                                                  _imageFolderPath !=
-                                                                          null &&
-                                                                      _imageFolderPath!
-                                                                          .isNotEmpty
-                                                                  ? '$_imageFolderPath/$_restaurantName'
-                                                                  : null,
-                                                              langCode:
-                                                                  _langCode,
+                                                            Expanded(
+                                                              child: MenuGrid(
+                                                                items:
+                                                                    _menuItems[name] ??
+                                                                    [],
+                                                                imageFolderPath:
+                                                                    _imageFolderPath !=
+                                                                            null &&
+                                                                        _imageFolderPath!
+                                                                            .isNotEmpty
+                                                                    ? '$_imageFolderPath/$_restaurantName'
+                                                                    : null,
+                                                                langCode:
+                                                                    _langCode,
+                                                              ),
                                                             ),
-                                                          ),
-                                                        ],
-                                                      );
-                                                    }).toList(),
-                                                  ),
-                                          ),
-                                        ],
-                                      ),
-                                      // Floating Action Buttons
-                                      if (!_showCart)
-                                        _buildFloatingActionBar(context),
-                                    ],
+                                                          ],
+                                                        );
+                                                      }).toList(),
+                                                    ),
+                                            ),
+                                          ],
+                                        ),
+                                        // Floating Action Buttons
+                                        if (!_showCart)
+                                          _buildFloatingActionBar(context),
+                                      ],
+                                    ),
+                            ),
+                            // Backdrop overlay when cart is open
+                            if (_showCart)
+                              Positioned.fill(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _showCart = false;
+                                    });
+                                  },
+                                  child: Container(
+                                    color: Colors.black.withOpacity(0.3),
                                   ),
-                          ),
-                          // Backdrop overlay when cart is open
-                          if (_showCart)
-                            Positioned.fill(
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _showCart = false;
-                                  });
-                                },
-                                child: Container(
-                                  color: Colors.black.withOpacity(0.3),
                                 ),
                               ),
-                            ),
-                          // Sliding Cart Panel
-                          AnimatedPositioned(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                            top: 0,
-                            bottom: 0,
-                            right: _showCart
-                                ? 0
-                                : -(MediaQuery.of(context).size.width * 0.45),
-                            width: MediaQuery.of(context).size.width * 0.45,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border(
-                                  left: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.08),
-                                    blurRadius: 10,
-                                    offset: const Offset(-5, 0),
+                            // Sliding Cart Panel
+                            AnimatedPositioned(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                              top: 0,
+                              bottom: 0,
+                              right: _showCart
+                                  ? 0
+                                  : -(MediaQuery.of(context).size.width * 0.45),
+                              width: MediaQuery.of(context).size.width * 0.45,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  border: Border(
+                                    left: BorderSide(color: Colors.grey[300]!),
                                   ),
-                                ],
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.08),
+                                      blurRadius: 10,
+                                      offset: const Offset(-5, 0),
+                                    ),
+                                  ],
+                                ),
+                                child: _buildCartPanel(context),
                               ),
-                              child: _buildCartPanel(context),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
