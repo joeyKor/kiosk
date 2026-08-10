@@ -2,6 +2,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'dart:typed_data';
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 
@@ -93,11 +94,31 @@ class _KioskHomePageState extends State<KioskHomePage> {
   bool _showWelcome = true;
   String _activeSidebarTab = 'menu';
   String _langCode = 'ko';
+  Timer? _menuInactivityTimer;
 
   @override
   void initState() {
     super.initState();
     _loadInitialData();
+  }
+
+  @override
+  void dispose() {
+    _menuInactivityTimer?.cancel();
+    super.dispose();
+  }
+
+  void _resetMenuTimer() {
+    _menuInactivityTimer?.cancel();
+    if (_showWelcome) return; // Only run timer when menu is active
+    _menuInactivityTimer = Timer(const Duration(seconds: 60), () {
+      if (mounted) {
+        setState(() {
+          _showWelcome = true;
+          _showCart = false;
+        });
+      }
+    });
   }
 
   Future<void> _loadInitialData() async {
@@ -491,6 +512,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
                 setState(() {
                   _showWelcome = false;
                 });
+                _resetMenuTimer();
               },
               child: Container(
                 color: Colors.white,
@@ -1209,35 +1231,50 @@ class _KioskHomePageState extends State<KioskHomePage> {
                     _tableNumber,
                   );
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            const Icon(
-                              Icons.notifications_active,
-                              color: Colors.white,
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (BuildContext context) {
+                        Timer(const Duration(seconds: 2), () {
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          }
+                        });
+                        return Dialog(
+                          backgroundColor: const Color(0xFF1D2026),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Container(
+                            width: 320,
+                            padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.notifications_active,
+                                  color: Color(0xFFF3C63F),
+                                  size: 60,
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  LocalizationService.instance.translate(
+                                    'call_success',
+                                    _langCode,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            Text(
-                              LocalizationService.instance.translate(
-                                'call_success',
-                                _langCode,
-                              ),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        backgroundColor: const Color(0xFF007A87),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        margin: const EdgeInsets.all(20),
-                        duration: const Duration(seconds: 3),
-                      ),
+                          ),
+                        );
+                      },
                     );
                   }
                 } catch (e) {
@@ -1521,7 +1558,10 @@ class _KioskHomePageState extends State<KioskHomePage> {
       length: _categories.length,
       child: Scaffold(
         backgroundColor: const Color(0xFFF9F9FB),
-        body: Row(
+        body: Listener(
+          onPointerDown: (_) => _resetMenuTimer(),
+          onPointerMove: (_) => _resetMenuTimer(),
+          child: Row(
           children: [
             // Left Sidebar
             _buildLeftSidebar(context),
@@ -1674,6 +1714,7 @@ class _KioskHomePageState extends State<KioskHomePage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

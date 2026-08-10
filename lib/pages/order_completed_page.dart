@@ -25,8 +25,8 @@ class _OrderCompletedPageState extends State<OrderCompletedPage> {
   @override
   void initState() {
     super.initState();
-    // Auto-close after 3 seconds
-    _timer = Timer(const Duration(seconds: 3), () {
+    // Auto-close after 7 seconds
+    _timer = Timer(const Duration(seconds: 7), () {
       if (mounted) {
         Navigator.of(context).pop();
       }
