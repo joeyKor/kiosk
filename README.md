@@ -1,16 +1,50 @@
-# kiosk
+# 조이오더 (Joy Order) - 테이블 무인 주문 키오스크
 
-A new Flutter project.
+Flutter 및 Firebase(Cloud Firestore) 기반의 태블릿 테이블 오더 및 매장 관리 시스템입니다.
 
-## Getting Started
+## 주요 기능
 
-This project is a starting point for a Flutter application.
+- **테이블 주문 모드**: 카테고리별 메뉴 조회, 장바구니 담기 애니메이션, 주문 내역 확인, 직원 호출, 다국어 지원(한국어/영어), FUN 룰렛 게임
+- **결제 및 영수증 연동**: 현금 결제 및 조이페이(JoyPay) 실시간 잔액 차감 트랜잭션, 상세 영수증 다이얼로그 표시
+- **사장님 모드 (Owner Mode)**: 실시간 주문/호출 알림(음성 TTS 및 화면 테두리 점멸), 주문 완료 처리, 결제 내역 관리, 실시간 품절(Sold Out) 상태 관리
+- **매장 및 메뉴 관리**: 다중 매장 전환 및 PIN 보안 인증, 카테고리/메뉴 추가·수정·삭제, 메뉴 이미지 크롭 및 USB 폴더 가져오기/내보내기
+- **프로그램 설정**: 관리자 PIN 변경, 이미지 저장 경로 설정, 주문/호출 기록 정리, 기본 데모 매장(`조이김밥`) 초기 데이터 복원
 
-A few resources to get you started if this is your first Flutter project:
+---
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## 메뉴 이미지 저장 및 불러오기 구조
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+1. **메타데이터(파일명) 서버 저장**:
+   - Firebase Firestore(`restaurants/{매장명}/menuItems/{메뉴명}`)에는 이미지 파일 전체 데이터가 아닌 **파일명(예: `메뉴이름.png`)** 또는 **기본 에셋 경로(`assets/images/...`)**만 저장됩니다.
+2. **실제 이미지 파일 로컬 저장**:
+   - `[매장 관리]`에서 카메라/갤러리로 선택한 이미지는 크롭 후 기기 내부 폴더(`{imageFolderPath}/{매장명}/{메뉴이름}.png`)에 저장됩니다.
+   - 기본 경로: Android `/storage/emulated/0/table_order/{매장명}`, Windows/기타 `<문서 폴더>/table_order/{매장명}`
+   - 여러 기기 간 이미지 동기화는 `[매장 관리]`의 **이미지 파일 복사(가져오기/내보내기)** 기능을 통해 USB 등으로 일괄 복사할 수 있습니다.
+3. **이미지 표시 (`ImageDisplay`)**:
+   - 내장 에셋(`Image.asset`) → 네트워크/웹(`Image.network`) → 로컬 폴더 파일(`Image.file`) → 메뉴명 기반 기본 에셋 매칭 순으로 우선순위를 두어 화면에 렌더링합니다.
+
+---
+
+## 최근 업데이트 내역
+
+### 이미지 크롭 비율 및 좌표 정밀도 개선
+- **메뉴판 이미지 잘림 현상 해결 (`lib/widgets/image_crop_screen.dart`)**:
+  - 크롭 박스의 비율을 주문 메뉴판(`MenuGrid`) 카드의 실제 이미지 영역 비율(`360 × 282`, 약 `1.275 : 1`)과 동일하게 맞추고 출력 해상도(`480 × 376`) 비율을 고정하여 `BoxFit.cover` 렌더링 시 추가 잘림이 발생하지 않도록 개선했습니다.
+  - `InteractiveViewer`에 `constrained: false` 및 `Clip.none`을 적용해 원본 이미지 비율이 강제로 찌그러지던 현상을 수정하고, 화면에서 맞춘 크롭 영역과 실제 잘리는 좌표가 100% 일치하도록 수정했습니다.
+  - 이미지를 축소하여 여백이 생길 때도 비율이 깨지지 않도록 흰색 배경 캔버스 위에 정확히 매핑하여 저장하도록 개선했습니다.
+
+### v3.19
+- 직원 호출 알림창 개선 (스낵바에서 2초 뒤 자동 닫히는 커스텀 다이얼로그로 변경)
+- 태블릿 기기 USB 이미지 파일 내보내기/가져오기 시 가상 루트 경로 검증 에러 해결
+- 프로그램 설정 화면 UI 리디자인 및 보안/데이터 관리 카드 구성 개선
+
+### v3.18
+- 주문 내역 페이지를 음식 사진 카드가 있는 시각적인 슬라이드 형태로 디자인 개선
+- 현금 결제 및 조이페이 결제 시 정밀 영수증 팝업 양식 연동
+
+### v3.17
+- 조이페이 Firestore 잔액 차감 기능 및 실시간 승인 트랜잭션 연동
+- 화면 하단 플로팅 버튼과 메뉴 그리드 간의 레이아웃 겹침 오류 해결
+
+### v3.10
+- 다국어 번역 지원 탑재 및 태블릿 무인 주문 키오스크 초기 버전 안정화 릴리즈

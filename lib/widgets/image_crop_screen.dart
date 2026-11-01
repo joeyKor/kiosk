@@ -57,6 +57,10 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
     }
   }
 
+  // Target crop box dimensions matching MenuGrid's image area aspect ratio (0.85 / (6/9) = 1.275)
+  static const double _targetBoxW = 360.0;
+  static const double _targetBoxH = 282.0;
+
   Future<void> _cropAndSave() async {
     if (_uiImage == null) return;
 
@@ -70,9 +74,8 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
     );
 
     try {
-      // 4:3 Crop box target dimensions (center of screen)
-      const double targetWidth = 360.0;
-      const double targetHeight = 270.0;
+      const double targetWidth = _targetBoxW;
+      const double targetHeight = _targetBoxH;
 
       // Current transformation matrix
       final Matrix4 transform = _transformationController.value;
@@ -80,7 +83,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
       final double tx = transform.storage[12];
       final double ty = transform.storage[13];
 
-      // Top-left of the target box in child (displayed image) coordinates
+      // Top-left and bottom-right of the target box in child (displayed image) coordinates
       final double topLeftChildX = (0.0 - tx) / s;
       final double topLeftChildY = (0.0 - ty) / s;
       final double bottomRightChildX = (targetWidth - tx) / s;
@@ -95,36 +98,37 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
       final double cropW = (bottomRightChildX - topLeftChildX) * scaleX;
       final double cropH = (bottomRightChildY - topLeftChildY) * scaleY;
 
-      // Clamp crop rectangle inside original image dimensions
-      final int finalX = cropX.clamp(0.0, _uiImage!.width.toDouble()).round();
-      final int finalY = cropY.clamp(0.0, _uiImage!.height.toDouble()).round();
-      final int finalW = cropW.clamp(1.0, (_uiImage!.width - finalX).toDouble()).round();
-      final int finalH = cropH.clamp(1.0, (_uiImage!.height - finalY).toDouble()).round();
-
-      // Resize cropped image to optimal menu resolution (max 400x300 px)
-      // to keep Base64 payload small (~50KB) and strictly respect Firestore's 1MB document size limit.
-      const double maxDim = 400.0;
-      double outW = finalW.toDouble();
-      double outH = finalH.toDouble();
-      if (outW > maxDim || outH > maxDim) {
-        if (outW >= outH) {
-          outH = (outH * maxDim) / outW;
-          outW = maxDim;
-        } else {
-          outW = (outW * maxDim) / outH;
-          outH = maxDim;
-        }
-      }
+      // Output resolution strictly maintains the target aspect ratio (360:282)
+      const double outW = 480.0;
+      final double outH = (outW * targetHeight / targetWidth).roundToDouble();
 
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
 
-      canvas.drawImageRect(
-        _uiImage!,
-        Rect.fromLTWH(finalX.toDouble(), finalY.toDouble(), finalW.toDouble(), finalH.toDouble()),
+      // Fill background with white in case the user zoomed out beyond image bounds
+      canvas.drawRect(
         Rect.fromLTWH(0, 0, outW, outH),
-        Paint()..filterQuality = ui.FilterQuality.high,
+        Paint()..color = Colors.white,
       );
+
+      // Map the exact crop rect (even if partially outside image bounds) onto the output canvas
+      final Rect srcRect = Rect.fromLTWH(cropX, cropY, cropW, cropH);
+      final Rect imgBounds = Rect.fromLTWH(0, 0, _uiImage!.width.toDouble(), _uiImage!.height.toDouble());
+      final Rect validSrcRect = srcRect.intersect(imgBounds);
+
+      if (!validSrcRect.isEmpty && validSrcRect.width > 0 && validSrcRect.height > 0) {
+        final double dstLeft = ((validSrcRect.left - cropX) / cropW) * outW;
+        final double dstTop = ((validSrcRect.top - cropY) / cropH) * outH;
+        final double dstWidth = (validSrcRect.width / cropW) * outW;
+        final double dstHeight = (validSrcRect.height / cropH) * outH;
+
+        canvas.drawImageRect(
+          _uiImage!,
+          validSrcRect,
+          Rect.fromLTWH(dstLeft, dstTop, dstWidth, dstHeight),
+          Paint()..filterQuality = ui.FilterQuality.high,
+        );
+      }
 
       final croppedUiImage = await recorder.endRecording().toImage(outW.round(), outH.round());
       final byteData = await croppedUiImage.toByteData(format: ui.ImageByteFormat.png);
@@ -153,14 +157,14 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const double targetBoxW = 360.0;
-    const double targetBoxH = 270.0;
+    const double targetBoxW = _targetBoxW;
+    const double targetBoxH = _targetBoxH;
 
     return Scaffold(
       backgroundColor: const Color(0xFF151515),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E2229),
-        title: const Text('이미지 편집 (4:3 비율)', style: TextStyle(color: Colors.white, fontSize: 18)),
+        title: const Text('이미지 편집', style: TextStyle(color: Colors.white, fontSize: 18)),
         actions: [
           TextButton.icon(
             icon: const Icon(Icons.check, color: Colors.white),
@@ -207,7 +211,9 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
                         width: targetBoxW,
                         height: targetBoxH,
                         child: ClipRect(
+                          clipBehavior: Clip.none,
                           child: InteractiveViewer(
+                            constrained: false,
                             transformationController: _transformationController,
                             boundaryMargin: const EdgeInsets.all(double.infinity),
                             minScale: 0.2,

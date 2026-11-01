@@ -1491,22 +1491,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                     style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                                   ),
                                 ),
-                                const SizedBox(height: 12),
-                                ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF007A87),
-                                    minimumSize: const Size(double.infinity, 44),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  onPressed: _showImageCopyDialog,
-                                  icon: const Icon(Icons.copy_all, color: Colors.white, size: 18),
-                                  label: const Text(
-                                    '이미지파일 복사',
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                                  ),
-                                ),
                               ],
                             ),
                           ),
