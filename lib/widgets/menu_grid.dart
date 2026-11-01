@@ -206,6 +206,9 @@ class MenuGrid extends StatelessWidget {
                                                 context: btnContext,
                                                 targetKey: KioskHomePage.cartTargetKey,
                                                 itemName: item.name,
+                                                imagePath: item.image,
+                                                imageFolderPath: imageFolderPath,
+                                                quantity: 1,
                                               );
                                             },
                                       style: ElevatedButton.styleFrom(

@@ -443,7 +443,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             child: localCroppedBytes != null
                                 ? Image.memory(
                                     localCroppedBytes!,
-                                    fit: BoxFit.cover,
+                                    fit: BoxFit.contain,
                                   )
                                 : ImageDisplay(
                                     imagePath: imageFilename,
@@ -511,33 +511,25 @@ class _SettingsPageState extends State<SettingsPage> {
                                   final ImagePicker picker = ImagePicker();
                                   final XFile? pickedFile = await picker.pickImage(source: source);
                                   if (pickedFile != null) {
-                                    final Uint8List? croppedBytes = await Navigator.push<Uint8List>(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => ImageCropScreen(file: pickedFile),
-                                      ),
-                                    );
-
-                                    if (croppedBytes != null) {
-                                      final menuName = nameController.text.trim().replaceAll('/', '_').replaceAll('.', '_');
-                                      final fileName = '$menuName.png';
-                                      if (!kIsWeb) {
-                                        final targetDir = _currentStoreImageFolderPath;
-                                        if (targetDir != null) {
-                                          final directory = Directory(targetDir);
-                                          if (!await directory.exists()) {
-                                            await directory.create(recursive: true);
-                                          }
-                                          final file = File('$targetDir/$fileName');
-                                          await file.writeAsBytes(croppedBytes);
+                                    final Uint8List imageBytes = await pickedFile.readAsBytes();
+                                    final menuName = nameController.text.trim().replaceAll('/', '_').replaceAll('.', '_');
+                                    final fileName = '$menuName.png';
+                                    if (!kIsWeb) {
+                                      final targetDir = _currentStoreImageFolderPath;
+                                      if (targetDir != null) {
+                                        final directory = Directory(targetDir);
+                                        if (!await directory.exists()) {
+                                          await directory.create(recursive: true);
                                         }
+                                        final file = File('$targetDir/$fileName');
+                                        await file.writeAsBytes(imageBytes);
                                       }
-
-                                      setStateDialog(() {
-                                        imageFilename = fileName;
-                                        localCroppedBytes = croppedBytes;
-                                      });
                                     }
+
+                                    setStateDialog(() {
+                                      imageFilename = fileName;
+                                      localCroppedBytes = imageBytes;
+                                    });
                                   }
                                 }
                               },

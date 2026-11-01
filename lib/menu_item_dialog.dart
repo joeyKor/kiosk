@@ -229,6 +229,9 @@ class _MenuItemDialogState extends State<MenuItemDialog> {
                                       context: btnContext,
                                       targetKey: KioskHomePage.cartTargetKey,
                                       itemName: widget.item.name,
+                                      imagePath: widget.item.image,
+                                      imageFolderPath: widget.imageFolderPath,
+                                      quantity: _quantity,
                                     );
                                     Navigator.pop(context);
                                   },

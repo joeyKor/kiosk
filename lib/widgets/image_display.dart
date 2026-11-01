@@ -45,7 +45,7 @@ class ImageDisplay extends StatelessWidget {
       final assetPath = effectiveImagePath.startsWith('assets/') ? effectiveImagePath : 'assets/$effectiveImagePath';
       return Image.asset(
         assetPath,
-        fit: BoxFit.cover,
+        fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
       );
     }
@@ -58,10 +58,10 @@ class ImageDisplay extends StatelessWidget {
             kIsWeb)) {
       return Image.network(
         imagePath!,
-        fit: BoxFit.cover,
+        fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) {
           if (matchedAsset != null) {
-            return Image.asset(matchedAsset, fit: BoxFit.cover);
+            return Image.asset(matchedAsset, fit: BoxFit.contain);
           }
           return _buildPlaceholder();
         },
@@ -72,7 +72,7 @@ class ImageDisplay extends StatelessWidget {
     if (!kIsWeb && imagePath != null && isFile) {
       final previewFile = File(imagePath!);
       if (previewFile.existsSync()) {
-        return Image.file(previewFile, fit: BoxFit.cover);
+        return Image.file(previewFile, fit: BoxFit.contain);
       }
     }
 
@@ -80,13 +80,13 @@ class ImageDisplay extends StatelessWidget {
     if (!kIsWeb && imageFolderPath != null && imagePath != null) {
       final imageFile = File('$imageFolderPath/$imagePath');
       if (imageFile.existsSync()) {
-        return Image.file(imageFile, fit: BoxFit.cover);
+        return Image.file(imageFile, fit: BoxFit.contain);
       }
     }
 
     // Fallback case: Matched asset by menu name if available
     if (matchedAsset != null) {
-      return Image.asset(matchedAsset, fit: BoxFit.cover);
+      return Image.asset(matchedAsset, fit: BoxFit.contain);
     }
 
     // Case 3: No image available or file not found, show a placeholder.

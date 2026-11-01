@@ -12,6 +12,7 @@ import 'package:kiosk/widgets/pin_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:kiosk/util/decrypt.dart';
 import 'package:kiosk/widgets/receipt_dialog.dart';
+import 'package:kiosk/widgets/image_display.dart';
 
 class OwnerModePage extends StatefulWidget {
   final String restaurantName;
@@ -552,11 +553,13 @@ class _OwnerModePageState extends State<OwnerModePage>
                                     opacity: item.isSoldOut ? 0.4 : 1.0,
                                     child: Container(
                                       color: Colors.black26,
-                                      child: item.image != null && item.image!.startsWith('assets/')
-                                          ? Image.asset(item.image!, fit: BoxFit.cover)
-                                          : (item.image != null
-                                              ? Image.network(item.image!, fit: BoxFit.cover)
-                                              : const Icon(Icons.restaurant, color: Colors.white)),
+                                      child: ImageDisplay(
+                                        imagePath: item.image,
+                                        imageFolderPath: _imageFolderPathState != null && _imageFolderPathState!.isNotEmpty
+                                            ? '$_imageFolderPathState/$_restaurantNameState'
+                                            : null,
+                                        itemName: item.name,
+                                      ),
                                     ),
                                   ),
                                 ),
